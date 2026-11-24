@@ -1,0 +1,22 @@
+{
+  "name": "local-delivery-demo",
+  "version": "1.0.0",
+  "description": "一个本地运行的项目交付与汇报助手原型。核心流程：创建项目 → 导入历史聊天或模拟机器人接入 → 确认需求并整理交付清单 → 上传交付材料 → 本地模型质检 → 模拟汇报问答。",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "exceljs": "^4.4.0",
+    "mammoth": "^1.13.0",
+    "pdf-parse": "^2.4.5"
+  },
+  "overrides": {
+    "uuid": "11.1.1"
+  }
+}
