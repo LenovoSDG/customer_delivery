@@ -5,16 +5,19 @@ const { spawn } = require('node:child_process');
 const mammoth = require('mammoth');
 const ExcelJS = require('exceljs');
 const { PDFParse } = require('pdf-parse');
+const { reviewProject } = require('./review');
+const { createModelGateway } = require('./model-gateway');
 
 const PORT = Number(process.env.PORT || 4174);
 const ROOT = __dirname;
+const gateway = createModelGateway({ configFile: path.join(ROOT, '.env.local') });
 const MAX_BODY = 12 * 1024 * 1024;
 const CAPTURE_DIR = path.join(ROOT, 'captures');
 const capture = { active: false, timer: null, busy: false, hwnd: '', title: '', group: '', model: '', intervalSec: 15, startedAt: '', lastCheck: '', lastError: '', saved: 0, events: [], nextEventId: 1, lastSignature: '' };
 fs.mkdirSync(CAPTURE_DIR, { recursive: true });
 
 function json(res, status, value) {
-  res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': '*' });
+  res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
   res.end(JSON.stringify(value));
 }
 
@@ -165,23 +168,40 @@ function extractRequirements(messages) {
   }));
 }
 
-async function askOllama(model, prompt) {
+async function askOllama(model, system, content, schema) {
   const response = await fetch('http://127.0.0.1:11434/api/chat', {
     method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ model, stream: false, messages: [{ role: 'user', content: prompt }] }),
+    body: JSON.stringify({ model, stream: false, think: false, format: schema,
+      options: { temperature: 0, seed: 42, num_ctx: 8192, num_predict: 1200 },
+      messages: [{ role: 'system', content: system }, { role: 'user', content: content + '\n输出JSON schema：' + JSON.stringify(schema) }] }),
     signal: AbortSignal.timeout(90000)
   });
   if (!response.ok) throw new Error(`Ollama 返回 HTTP ${response.status}`);
   const result = await response.json();
-  return result.message?.content || '';
+  if (result.done_reason === 'length') throw new Error('本条模型输出被截断，请重试或拆分需求');
+  if (!result.message?.content) throw new Error('本地模型未返回检查意见');
+  return result.message.content;
 }
 
 const server = http.createServer(async (req, res) => {
+  const origins = [`http://127.0.0.1:${PORT}`, `http://localhost:${PORT}`];
+  if (!origins.includes(`http://${req.headers.host}`) || (req.headers.origin && !origins.includes(req.headers.origin))) {
+    return json(res, 403, { error: '仅允许从本机项目页面访问' });
+  }
   if (req.method === 'OPTIONS') {
-    res.writeHead(204, { 'access-control-allow-origin': '*', 'access-control-allow-methods': 'GET,POST,OPTIONS', 'access-control-allow-headers': 'content-type' });
+    res.writeHead(204, { 'access-control-allow-methods': 'GET,POST,OPTIONS', 'access-control-allow-headers': 'content-type' });
     return res.end();
   }
   const url = new URL(req.url, `http://127.0.0.1:${PORT}`);
+  if (url.pathname === '/api/model-config' && req.method === 'GET') return json(res, 200, gateway.publicConfig());
+  if (url.pathname === '/api/model-config' && req.method === 'POST') {
+    try { return json(res, 200, gateway.saveConfig(await readBody(req))); }
+    catch (error) { return json(res, 400, { error: error.message }); }
+  }
+  if (url.pathname === '/api/api-models' && req.method === 'POST') {
+    try { const { apiKey } = await readBody(req); return json(res, 200, await gateway.listModels(apiKey)); }
+    catch (error) { return json(res, 400, { error: error.message }); }
+  }
   if (url.pathname === '/api/health') {
     try {
       const response = await fetch('http://127.0.0.1:11434/api/tags', { signal: AbortSignal.timeout(1500) });
@@ -283,23 +303,37 @@ const server = http.createServer(async (req, res) => {
   }
   if (url.pathname === '/api/review' && req.method === 'POST') {
     try {
-      const { model, requirements, documents, rules } = await readBody(req);
-      const requirementsText = (requirements || []).map(r => `- ${r.id} ${r.detail} [来源：${r.evidence}]`).join('\n');
-      const documentText = (documents || []).map(d => `【${d.name}】\n${d.text}`).join('\n\n');
-      if (model && model !== 'rules') {
-        const prompt = `你是项目交付核验助手。只根据给定材料判断，不要编造。用户给出的检查规范：\n${rules || '无'}\n\n已确认/待确认需求（含来源）：\n${requirementsText || '暂无'}\n\n待核验交付材料：\n${documentText || '暂无'}\n\n请用中文输出：总体结论；逐项列出“问题/缺失、材料证据（文件名及原句）、关联需求、修改建议”；并指出需要人工确认的内容。若证据不足，明确写“无法判断”。`;
+      const input = await readBody(req);
+      const { model, requirements, documents, rules } = input;
+      const provider = input.provider || 'ollama';
+      if (!['ollama', 'bohrium'].includes(provider)) return json(res, 400, { error: '未知的模型来源' });
+      if (provider === 'bohrium') {
+        const config = gateway.publicConfig();
+        if (!config.keyConfigured) return json(res, 400, { error: '请先在模型设置中配置玻尔 API 密钥' });
+        const selected = String(model || config.apiModel).trim();
+        if (!selected) return json(res, 400, { error: '请先选择 API 模型' });
+        const controller = new AbortController();
+        const cancelOnDisconnect = () => { if (!res.writableEnded) controller.abort(); };
+        res.once('close', cancelOnDisconnect);
+        if (res.destroyed) controller.abort();
         try {
-          const answer = await askOllama(model, prompt);
-          return json(res, 200, { mode: 'ollama', answer });
-        } catch (error) {
-          return json(res, 200, { mode: 'rules', warning: `未能连接本地模型，已回退到规则核对：${error.message}`, items: ruleReview(requirements || [], documents || [], rules || '') });
-        }
+          const result = await reviewProject(input, (system, content, schema) => gateway.ask(selected, system, content, schema, { signal: controller.signal }));
+          if (!res.destroyed) return json(res, 200, { ...result, mode: result.report.summary.reviewed ? 'api' : 'unavailable', provider, model: selected });
+          return;
+        } finally { res.off('close', cancelOnDisconnect); }
+      }
+      if (model && model !== 'rules') {
+        const result = await reviewProject(input, (system, content, schema) => askOllama(model, system, content, schema));
+        return json(res, 200, { ...result, provider: 'ollama', model });
       }
       return json(res, 200, { mode: 'rules', items: ruleReview(requirements || [], documents || [], rules || '') });
     } catch (error) { return json(res, 400, { error: error.message }); }
   }
+  const vendors = { '/vendor/marked.js': 'node_modules/marked/lib/marked.umd.js', '/vendor/purify.js': 'node_modules/dompurify/dist/purify.min.js' };
+  const assets = new Set(['/', '/index.html', '/app.js', '/style.css', '/report.css', '/report-ui.js', '/model-settings.js', '/model-settings.css', ...Object.keys(vendors)]);
+  if (!assets.has(url.pathname)) return json(res, 404, { error: '未找到页面' });
   const file = url.pathname === '/' ? 'index.html' : path.basename(url.pathname);
-  const filePath = path.join(ROOT, file);
+  const filePath = path.join(ROOT, vendors[url.pathname] || file);
   if (!filePath.startsWith(ROOT)) return json(res, 403, { error: '禁止访问' });
   fs.readFile(filePath, (error, data) => {
     if (error) return json(res, 404, { error: '未找到页面' });
