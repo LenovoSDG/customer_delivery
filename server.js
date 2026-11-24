@@ -6,6 +6,7 @@ const mammoth = require('mammoth');
 const ExcelJS = require('exceljs');
 const { PDFParse } = require('pdf-parse');
 const { reviewProject } = require('./review');
+const { coachTurn } = require('./rehearsal');
 const { createModelGateway } = require('./model-gateway');
 
 const PORT = Number(process.env.PORT || 4174);
@@ -168,13 +169,13 @@ function extractRequirements(messages) {
   }));
 }
 
-async function askOllama(model, system, content, schema) {
+async function askOllama(model, system, content, schema, signal) {
   const response = await fetch('http://127.0.0.1:11434/api/chat', {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ model, stream: false, think: false, format: schema,
       options: { temperature: 0, seed: 42, num_ctx: 8192, num_predict: 1200 },
       messages: [{ role: 'system', content: system }, { role: 'user', content: content + '\n输出JSON schema：' + JSON.stringify(schema) }] }),
-    signal: AbortSignal.timeout(90000)
+    signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(90000)]) : AbortSignal.timeout(90000)
   });
   if (!response.ok) throw new Error(`Ollama 返回 HTTP ${response.status}`);
   const result = await response.json();
@@ -193,6 +194,34 @@ const server = http.createServer(async (req, res) => {
     return res.end();
   }
   const url = new URL(req.url, `http://127.0.0.1:${PORT}`);
+  if (url.pathname === '/api/voice/status' && req.method === 'GET') {
+    try { const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'voice-models/manifest.json'))); return json(res, 200, { ...manifest, ready: fs.existsSync(path.join(ROOT, 'voice-models/chinese.tar.gz')) }); }
+    catch { return json(res, 200, { ready: false }); }
+  }
+  if (url.pathname === '/voice-model/chinese.tar.gz' && req.method === 'GET') {
+    const archive = path.join(ROOT, 'voice-models/chinese.tar.gz');
+    if (!fs.existsSync(archive)) return json(res, 404, { error: '请运行 npm run setup:voice' });
+    res.writeHead(200, { 'content-type': 'application/gzip', 'content-length': fs.statSync(archive).size, 'cache-control': 'no-cache' });
+    const stream = fs.createReadStream(archive); stream.on('error', () => res.destroy()); res.on('close', () => stream.destroy()); return stream.pipe(res);
+  }
+  if (url.pathname === '/api/rehearsal' && req.method === 'POST') {
+    const controller = new AbortController();
+    const cancel = () => { if (!res.writableEnded) controller.abort(); }; res.once('close', cancel);
+    try {
+      const input = await readBody(req);
+      if (!['ollama', 'bohrium'].includes(input.provider)) throw new Error('请选择本地模型或 API 模型');
+      const model = String(input.model || '').trim();
+      if (!model || model === 'rules') throw new Error('汇报教练需要语言模型，请在模型设置中选择本地或 API 模型');
+      if (input.provider === 'bohrium' && !gateway.publicConfig().keyConfigured) throw new Error('请先配置 API 密钥');
+      if (res.destroyed) controller.abort();
+      const result = await coachTurn(input, (system, content, schema) => input.provider === 'bohrium'
+        ? gateway.ask(model, system, content, schema, { signal: controller.signal })
+        : askOllama(model, system, content, schema, controller.signal));
+      if (!res.destroyed) json(res, 200, { ...result, provider: input.provider, model });
+    } catch (error) { if (!res.destroyed) json(res, 400, { error: error.message }); }
+    finally { res.off('close', cancel); }
+    return;
+  }
   if (url.pathname === '/api/model-config' && req.method === 'GET') return json(res, 200, gateway.publicConfig());
   if (url.pathname === '/api/model-config' && req.method === 'POST') {
     try { return json(res, 200, gateway.saveConfig(await readBody(req))); }
@@ -329,8 +358,8 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, { mode: 'rules', items: ruleReview(requirements || [], documents || [], rules || '') });
     } catch (error) { return json(res, 400, { error: error.message }); }
   }
-  const vendors = { '/vendor/marked.js': 'node_modules/marked/lib/marked.umd.js', '/vendor/purify.js': 'node_modules/dompurify/dist/purify.min.js' };
-  const assets = new Set(['/', '/index.html', '/app.js', '/style.css', '/report.css', '/report-ui.js', '/model-settings.js', '/model-settings.css', ...Object.keys(vendors)]);
+  const vendors = { '/vendor/vosk.js': 'node_modules/vosk-browser/dist/vosk.js', '/vendor/marked.js': 'node_modules/marked/lib/marked.umd.js', '/vendor/purify.js': 'node_modules/dompurify/dist/purify.min.js' };
+  const assets = new Set(['/', '/index.html', '/app.js', '/style.css', '/report.css', '/report-ui.js', '/model-settings.js', '/model-settings.css', '/speech-engine.js', '/rehearsal-ui.js', '/rehearsal.css', '/audio-capture-worklet.js', ...Object.keys(vendors)]);
   if (!assets.has(url.pathname)) return json(res, 404, { error: '未找到页面' });
   const file = url.pathname === '/' ? 'index.html' : path.basename(url.pathname);
   const filePath = path.join(ROOT, vendors[url.pathname] || file);

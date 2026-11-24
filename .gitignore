@@ -5,3 +5,4 @@ outputs/
 .env.*
 !.env.example
 .model-config-*.tmp
+voice-models/

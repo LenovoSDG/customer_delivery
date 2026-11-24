@@ -1,0 +1,50 @@
+#page-rehearsal { font-size:16px; line-height:1.65; }
+#page-rehearsal .page-heading h1 { font-size:28px; }
+#page-rehearsal .page-heading p,#page-rehearsal .surface-heading p { font-size:14px; color:#526173; }
+#page-rehearsal h2 { font-size:19px; }
+#page-rehearsal label { font-size:14px; color:#37485b; }
+#page-rehearsal button,#page-rehearsal select,#page-rehearsal textarea { font-size:14px; }
+#page-rehearsal textarea { font-size:16px; caret-color:#087f91; }
+#page-rehearsal textarea::placeholder { color:#657181; }
+#page-rehearsal .rehearsal-grid { grid-template-columns:minmax(260px, .8fr) minmax(0,1.6fr); align-items:start; gap:24px; }
+#page-rehearsal .rehearsal-setup { min-width:0; }
+#page-rehearsal .rehearsal-actions { flex-wrap:wrap; gap:10px; }
+#page-rehearsal .primary { background:#087f91; border-color:#087f91; color:white; }
+#page-rehearsal .primary:hover { background:#066b7b; }
+#page-rehearsal button:disabled { opacity:.55; cursor:not-allowed; }
+#page-rehearsal :focus-visible { outline:3px solid #087f91; outline-offset:3px; }
+#page-rehearsal ::selection { background:#c9edf0; color:#143345; }
+#page-rehearsal .privacy-note,#page-rehearsal .audio-hint,#page-rehearsal .tts-note,#page-rehearsal .answer-help { font-size:12px; color:#526173; line-height:1.7; }
+#page-rehearsal .privacy-note { display:block; margin:16px 0 0; }
+.voice-panel { margin-top:20px; padding-top:16px; border-top:1px solid #d9e1e7; }
+#voiceStatus { margin:0 0 8px; font-size:14px; overflow-wrap:anywhere; }
+#voiceLevel { width:100%; height:12px; accent-color:#087f91; }
+#voicePartial { min-height:24px; margin:4px 0; font-size:14px; color:#526173; }
+#page-rehearsal .text-button { border:0; background:transparent; padding:8px 4px; color:#076e7e; text-decoration:underline; text-underline-offset:4px; min-height:40px; }
+#page-rehearsal .coach-head { padding:20px; gap:12px; }
+#page-rehearsal .coach-head b { font-size:16px; }
+#page-rehearsal .coach-head small { font-size:12px; color:#526173; }
+#page-rehearsal .coach-live { font-size:12px; margin-left:auto; color:#765518; white-space:nowrap; }
+.session-toolbar { padding:8px 20px 0; display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+#rehearsalClock { font-size:18px; font-variant-numeric:tabular-nums; color:#1b2e4c; }
+#page-rehearsal .read-option { display:flex; align-items:center; gap:6px; margin:0; }
+#page-rehearsal .read-option input { width:16px; height:16px; margin:0; }
+#page-rehearsal .tts-note { margin:0; padding:0 20px 12px; }
+#page-rehearsal .conversation { min-height:280px; max-height:520px; height:380px; overflow:auto; scrollbar-color:#a5bac1 #f3f6f8; }
+#page-rehearsal .coach-message,#page-rehearsal .user-message { font-size:16px; line-height:1.8; overflow-wrap:anywhere; white-space:pre-wrap; }
+#page-rehearsal .answer-box { align-items:end; padding:16px 20px 4px; gap:12px; }
+#page-rehearsal .answer-box label { flex:1; margin:0; min-width:0; }
+#page-rehearsal .answer-box textarea { display:block; width:100%; min-height:100px; margin-top:8px; }
+#page-rehearsal .answer-help { margin:0; padding:8px 20px 16px; }
+#page-rehearsal .feedback-placeholder { font-size:16px; }
+#page-rehearsal #feedback { line-height:1.8; font-size:16px; color:#37485b; }
+#page-rehearsal #feedback h3 { font-size:17px; margin:20px 0 8px; }
+#page-rehearsal #feedback ul { padding-left:24px; margin:8px 0; }
+#page-rehearsal #feedback blockquote { border-left:1px solid #91aeb8; margin:16px 0; padding-left:16px; }
+#page-rehearsal #feedback small { font-size:12px; }
+#page-rehearsal .voice-error { color:#a32922; }
+#page-rehearsal #micButton[data-recording="true"] { background:#a32922; border-color:#a32922; }
+@media(max-width:1100px) { #page-rehearsal .rehearsal-grid { grid-template-columns:1fr; } }
+@media(max-width:600px) { #page-rehearsal .answer-box { flex-direction:column; align-items:stretch; } #page-rehearsal .page-heading { flex-wrap:wrap; gap:12px; } #page-rehearsal .coach-head { flex-wrap:wrap; } }
+#page-rehearsal .local-pill { font-size:12px; color:#38624d; }
+#page-rehearsal .coach-avatar { font-size:14px; }
