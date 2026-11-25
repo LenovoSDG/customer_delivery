@@ -3,15 +3,16 @@ function harness() {
  const dom=new JSDOM(fs.readFileSync(require.resolve('../index.html'),'utf8'),{runScripts:'outside-only',url:'http://127.0.0.1:4174/'}), w=dom.window;
  w.document.getElementById('page-rehearsal').classList.add('active');
  w.addEventListener('error',event=>{throw event.error;});
- let cancelCount=0, calls=0, resolveFetch, callbacks, now=10000; const timers=[], bodies=[];
+ let cancelCount=0, calls=0, resolveFetch, callbacks, now=10000, starts=0, finishes=0, muted=false, spoken; const timers=[], bodies=[];
  w.Date.now=()=>now; w.setInterval=fn=>{timers.push(fn);return timers.length;};
- w.structuredClone=structuredClone; w.SpeechEngine=class{constructor(cb){callbacks=cb;} async start(){return true;} async stop(){callbacks.text('我们需要补充管理员操作手册');callbacks.partial('');} cancel(){cancelCount++;}};
+ w.structuredClone=structuredClone; w.SpeechEngine=class{constructor(cb){callbacks=cb;} setMuted(value){muted=value;} async start(){starts++;return true;} async finishUtterance(){finishes++;callbacks.text('我们需要补充管理员操作手册');callbacks.partial('');callbacks.boundary();} async stop(){callbacks.text('我们需要补充管理员操作手册');callbacks.partial('');} cancel(){cancelCount++;}};
+ w.speechSynthesis={getVoices:()=>[{lang:'zh-CN',localService:true}],addEventListener(){},cancel(){},speak(utterance){spoken=utterance;}};w.SpeechSynthesisUtterance=class{constructor(text){this.text=text;}};
  w.ModelSettings={selection:async()=>({provider:'bohrium',model:'test-model'})};
  w.fetch=async(url,options)=>{calls++;bodies.push(JSON.parse(options.body)); return new Promise(resolve=>{resolveFetch=resolve;});};
  w.state={project:{name:'演示'},requirements:[],docs:[]}; w.escapeHtml=s=>String(s).replaceAll('<','&lt;');
  w.eval(fs.readFileSync(require.resolve('../rehearsal-ui'),'utf8'));
  const el=id=>w.document.getElementById(id);
- return {w,el,bodies,get speech(){return callbacks;},advance(ms){now+=ms;timers.forEach(fn=>fn());},close:()=>w.close(),get calls(){return calls;},get cancels(){return cancelCount;},resolve:result=>resolveFetch({ok:true,json:async()=>result}),type(text){el('answerInput').value=text;el('answerInput').dispatchEvent(new w.Event('input'));}};
+ return {w,el,bodies,get speech(){return callbacks;},advance(ms){now+=ms;timers.forEach(fn=>fn());},close:()=>w.close(),get muted(){return muted;},get spoken(){return spoken;},get starts(){return starts;},get finishes(){return finishes;},get calls(){return calls;},get cancels(){return cancelCount;},resolve:result=>resolveFetch({ok:true,json:async()=>result}),type(text){el('answerInput').value=text;el('answerInput').dispatchEvent(new w.Event('input'));}};
 }
 const flush=()=>new Promise(setImmediate);
 test('typed answers require explicit submit; plain Enter and IME composition cannot submit',async()=>{
@@ -28,15 +29,39 @@ test('failed model turn preserves draft and never inserts fabricated feedback',a
 });
 
 test('speech streams revisions into one conversation bubble, keeps typed draft, and sends once after silence',async()=>{
- const h=harness();try{h.type('文字草稿');h.el('micButton').click();await flush();h.speech.partial('我们');assert.match(h.el('conversation').textContent,/我们/);assert.equal(h.el('answerInput').value,'文字草稿');h.speech.partial('我们需要');assert.equal(h.el('conversation').querySelectorAll('.voice-message').length,1);assert.equal(h.calls,0);h.advance(1700);await flush();assert.equal(h.calls,0);h.advance(200);await flush();assert.equal(h.calls,1);assert.equal(h.bodies[0].answer,'我们需要补充管理员操作手册');h.advance(3000);await flush();assert.equal(h.calls,1);assert.equal(h.el('answerInput').value,'文字草稿');}finally{h.close();}
+ const h=harness();try{h.type('文字草稿');h.el('micButton').click();await flush();h.speech.partial('我们');assert.match(h.el('conversation').textContent,/我们/);assert.equal(h.el('answerInput').value,'文字草稿');h.speech.partial('我们需要');assert.equal(h.el('conversation').querySelectorAll('.voice-message').length,1);assert.equal(h.calls,0);h.advance(1000);await flush();assert.equal(h.calls,0);h.advance(200);await flush();assert.equal(h.calls,1);assert.equal(h.bodies[0].answer,'我们需要补充管理员操作手册');h.advance(3000);await flush();assert.equal(h.calls,1);assert.equal(h.el('answerInput').value,'文字草稿');}finally{h.close();}
 });
 test('pausing live speech prevents silence auto-send and preserves the visible utterance',async()=>{
  const h=harness();try{h.el('micButton').click();await flush();h.speech.partial('先保留这段发言');h.el('pauseRehearsal').click();h.advance(3000);await flush();assert.equal(h.calls,0);assert.match(h.el('conversation').textContent,/先保留这段发言/);assert.match(h.el('conversation').textContent,/已暂停/);}finally{h.close();}
 });
 test('voice model failure can retry the same bubble without duplicating the user message',async()=>{
- const h=harness();try{h.el('micButton').click();await flush();h.speech.partial('我们需要');h.el('micButton').click();await flush();assert.equal(h.calls,1);h.resolve({error:'服务暂时不可用'});await flush();const bubble=h.el('conversation').querySelector('.voice-message');assert.match(bubble.textContent,/回复失败/);bubble.querySelector('button').click();await flush();assert.equal(h.calls,2);h.resolve({summary:'建议明确交付时间',question:'何时交付？',strengths:[],improvements:[],evidence:[],warnings:[],model:'test-model'});await flush();assert.equal(h.el('conversation').querySelectorAll('.user-message').length,1);assert.match(h.el('conversation').textContent,/何时交付/);}finally{h.close();}
+ const h=harness();try{h.el('micButton').click();await flush();h.speech.partial('我们需要');h.el('finishVoiceTurn').click();await flush();assert.equal(h.calls,1);h.resolve({error:'服务暂时不可用'});await flush();const bubble=h.el('conversation').querySelector('.voice-message');assert.match(bubble.textContent,/回复失败/);bubble.querySelector('button').click();await flush();assert.equal(h.calls,2);h.resolve({summary:'建议明确交付时间',question:'何时交付？',strengths:[],improvements:[],evidence:[],warnings:[],model:'test-model'});await flush();assert.equal(h.el('conversation').querySelectorAll('.user-message').length,1);assert.match(h.el('conversation').textContent,/何时交付/);}finally{h.close();}
 });
 
 test('ongoing microphone activity extends the silence deadline',async()=>{
- const h=harness();try{h.el('micButton').click();await flush();h.speech.partial('我们');h.advance(1700);h.speech.level(.5);h.advance(200);await flush();assert.equal(h.calls,0);h.advance(1800);await flush();assert.equal(h.calls,1);}finally{h.close();}
+ const h=harness();try{h.el('micButton').click();await flush();h.speech.partial('我们');h.advance(1000);h.speech.level(.5);h.advance(200);await flush();assert.equal(h.calls,0);h.advance(1800);await flush();assert.equal(h.calls,1);}finally{h.close();}
+});
+
+const reply={summary:'交付内容清楚，建议明确负责人。',question:'何时交付？',strengths:[],improvements:[],evidence:[],warnings:[],model:'test-model'};
+test('two spoken turns use one continuously open microphone without a second start click',async()=>{
+ const h=harness();try{h.el('micButton').click();await flush();h.speech.partial('第一轮回答');h.advance(2000);await flush();assert.equal(h.calls,1);h.resolve(reply);await flush();assert.equal(h.el('micButton').textContent,'停止录音');h.speech.partial('第二轮回答');h.advance(2000);await flush();assert.equal(h.calls,2);assert.equal(h.starts,1);assert.equal(h.cancels,0);assert.equal(h.finishes,2);}finally{h.close();}
+});
+test('speech during a slow model reply is preserved and queued in order',async()=>{
+ const h=harness();try{h.el('micButton').click();await flush();h.speech.partial('第一轮');h.advance(1200);await flush();h.speech.partial('等待时补充');assert.match(h.el('conversation').textContent,/等待时补充/);h.advance(1200);await flush();assert.equal(h.calls,1);h.resolve(reply);await flush();assert.equal(h.calls,2);assert.equal(h.bodies[1].history.length,2);assert.equal(h.cancels,0);}finally{h.close();}
+});
+test('explicit microphone stop works during model generation and never automatically reopens it',async()=>{
+ const h=harness();try{h.el('micButton').click();await flush();h.speech.partial('第一轮');h.advance(1200);await flush();assert.equal(h.el('micButton').disabled,false);h.el('micButton').click();assert.equal(h.cancels,1);h.resolve(reply);await flush();assert.equal(h.el('micButton').textContent,'开启连续录音');h.advance(5000);await flush();assert.equal(h.starts,1);assert.equal(h.cancels,1);}finally{h.close();}
+});
+test('practice time reminder does not cut off continuous recording',async()=>{
+ const h=harness();try{h.el('micButton').click();await flush();h.advance(301000);await flush();assert.equal(h.el('micButton').textContent,'停止录音');assert.equal(h.cancels,0);assert.match(h.el('voiceStatus').textContent,/麦克风仍开启/);}finally{h.close();}
+});
+test('ending a voice turn with pending model work marks it stopped and ignores the late reply',async()=>{
+ const h=harness();try{h.el('micButton').click();await flush();h.speech.partial('第一轮');h.advance(1200);await flush();h.el('endRehearsal').click();assert.match(h.el('conversation').textContent,/回复已停止/);h.resolve(reply);await flush();assert.doesNotMatch(h.el('conversation').textContent,/何时交付/);assert.equal(h.cancels,1);}finally{h.close();}
+});
+test('resuming a paused voice rehearsal reopens listening without an additional microphone click',async()=>{
+ const h=harness();try{h.el('micButton').click();await flush();h.el('pauseRehearsal').click();assert.equal(h.cancels,1);h.el('pauseRehearsal').click();await flush();assert.equal(h.starts,2);assert.equal(h.el('micButton').textContent,'停止录音');}finally{h.close();}
+});
+
+test('local question playback keeps the microphone open and resumes recognition automatically',async()=>{
+ const h=harness();try{h.el('autoRead').checked=true;h.el('micButton').click();await flush();h.speech.partial('第一轮');h.advance(1200);await flush();h.resolve(reply);await flush();assert.equal(h.spoken.text,'何时交付？');assert.equal(h.muted,true);assert.equal(h.cancels,0);assert.equal(h.el('micButton').textContent,'停止录音');h.spoken.onend();assert.equal(h.muted,false);assert.equal(h.cancels,0);assert.equal(h.starts,1);}finally{h.close();}
 });

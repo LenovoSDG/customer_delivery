@@ -97,12 +97,17 @@ function createModelGateway({ configFile, env = process.env, fetchImpl = global.
     return { models, apiBaseUrl: BASE_URL };
   }
 
-  async function ask(model, system, content, schema, { signal } = {}) {
+  async function ask(model, system, content, schema, { signal, interactive = false } = {}) {
     const key = validateKey(settings.apiKey);
     const body = { model: validateModel(model), stream: false,
       messages: [{ role: 'system', content: system }, { role: 'user', content: content + '\n仅输出JSON，遵循此schema：' + JSON.stringify(schema) }],
       response_format: { type: 'json_object' }
     };
+    if (interactive) {
+      body.max_tokens = 1200;
+      // Only known GLM versions support disabling reasoning; keep quality review defaults intact.
+      if (/^glm-(?:4\.[567](?:-|$)|5(?:\.[12])?(?:-|$))/i.test(model)) body.thinking = { type: 'disabled' };
+    }
     let response = await request('/chat/completions', key, body, signal);
     if (response.status === 400 || response.status === 422) {
       // Retry only a rejected JSON-mode parameter, never a completed generation.

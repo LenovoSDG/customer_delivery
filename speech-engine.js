@@ -20,14 +20,17 @@
     return modelPromise;
   }
   class SpeechEngine {
-    constructor(callbacks = {}) { this.callbacks = callbacks; this.generation = 0; this.pending = 0; this.text = ''; }
+    constructor(callbacks = {}) { this.callbacks = callbacks; this.generation = 0; this.pending = 0; this.text = ''; this.holding = false; this.held = []; this.heldSamples = 0; this.muted = false; }
     async prepare() {
       const generation = ++this.generation;
       const model = await loadModel();
       if (generation !== this.generation) throw new Error('已取消语音准备');
-      this.recognizer = new model.KaldiRecognizer(16000); this.pending = 0; this.text = '';
+      this.model = model; this.createRecognizer(generation); return generation;
+    }
+    createRecognizer(generation) {
+      const recognizer = this.recognizer = new this.model.KaldiRecognizer(16000); this.pending = 0; this.text = '';
       this.recognizer.on('result', message => {
-        if (generation !== this.generation) return;
+        if (generation !== this.generation || recognizer !== this.recognizer) return;
         this.pending = Math.max(0, this.pending - 1);
         const part = clean(message.result?.text);
         if (part) { this.text += (this.text ? '，' : '') + part; this.callbacks.text?.(this.text); }
@@ -35,16 +38,22 @@
         if (this.finalResolve) { this.finalResolve(); this.finalResolve = null; }
       });
       this.recognizer.on('partialresult', message => {
-        if (generation !== this.generation) return;
+        if (generation !== this.generation || recognizer !== this.recognizer) return;
         this.pending = Math.max(0, this.pending - 1); this.callbacks.partial?.(clean(message.result?.partial));
       });
-      this.recognizer.on('error', () => { if (generation === this.generation) this.callbacks.error?.(new Error('语音识别失败，请停止后重试')); });
-      return generation;
+      this.recognizer.on('error', () => { if (generation === this.generation && recognizer === this.recognizer) this.callbacks.error?.(new Error('语音识别失败，请停止后重试')); });
     }
+    setMuted(value) { this.muted = value; }
     feed(data, rate) {
       if (!this.recognizer) return;
       let sum = 0; for (const value of data) sum += value * value;
       this.callbacks.level?.(Math.min(1, Math.sqrt(sum / data.length) * 5));
+      if (this.muted) return;
+      if (this.holding) {
+        this.heldSamples += data.length;
+        if (this.heldSamples > rate * 30) { this.callbacks.error?.(new Error('语音收尾超时，已停止录音，请重试')); return; }
+        this.held.push({ data, rate }); return;
+      }
       this.pending++; this.recognizer.acceptWaveformFloat(data, rate);
     }
     async start() {
@@ -85,6 +94,21 @@
         this.finalResolve = () => { clearTimeout(timer); resolve(); }; this.recognizer.retrieveFinalResult();
       });
     }
+    async finishUtterance() {
+      // Rotate only the recognizer. Keep the same MediaStream, AudioContext and capture node.
+      const generation = this.generation;
+      this.holding = true; this.held = []; this.heldSamples = 0;
+      try {
+        await this.drain(generation);
+        if (generation !== this.generation) return;
+        const answer = this.text;
+        this.callbacks.boundary?.(answer);
+        this.recognizer.remove(); this.createRecognizer(generation);
+        const buffered = this.held; this.held = []; this.heldSamples = 0; this.holding = false;
+        for (const chunk of buffered) this.feed(chunk.data, chunk.rate);
+        return answer;
+      } finally { if (generation === this.generation) this.holding = false; }
+    }
     async stop() {
       const generation = this.generation;
       this.stream?.getTracks().forEach(track => track.stop());
@@ -117,7 +141,7 @@
       } finally { if (generation === this.generation) this.cancel(); }
     }
     cancel() {
-      this.generation++; this.stream?.getTracks().forEach(track => track.stop()); this.stream = null;
+      this.generation++; this.holding = false; this.held = []; this.heldSamples = 0; this.muted = false; this.stream?.getTracks().forEach(track => track.stop()); this.stream = null;
       this.source?.disconnect(); this.node?.disconnect(); this.source = this.node = null;
       this.context?.close().catch(() => {}); this.context = null;
       this.recognizer?.remove(); this.recognizer = null; this.finalResolve?.(); this.finalResolve = null; this.callbacks.level?.(0);

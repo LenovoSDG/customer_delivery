@@ -214,10 +214,11 @@ const server = http.createServer(async (req, res) => {
       if (!model || model === 'rules') throw new Error('汇报教练需要语言模型，请在模型设置中选择本地或 API 模型');
       if (input.provider === 'bohrium' && !gateway.publicConfig().keyConfigured) throw new Error('请先配置 API 密钥');
       if (res.destroyed) controller.abort();
+      const started = performance.now();
       const result = await coachTurn(input, (system, content, schema) => input.provider === 'bohrium'
-        ? gateway.ask(model, system, content, schema, { signal: controller.signal })
+        ? gateway.ask(model, system, content, schema, { signal: controller.signal, interactive: true })
         : askOllama(model, system, content, schema, controller.signal));
-      if (!res.destroyed) json(res, 200, { ...result, provider: input.provider, model });
+      if (!res.destroyed) json(res, 200, { ...result, provider: input.provider, model, elapsedMs: Math.round(performance.now() - started) });
     } catch (error) { if (!res.destroyed) json(res, 400, { error: error.message }); }
     finally { res.off('close', cancel); }
     return;

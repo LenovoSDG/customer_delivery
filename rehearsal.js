@@ -16,7 +16,7 @@ const COACH_SYSTEM = `你是项目汇报教练。扮演指定听众，对本轮�
 你收到的是文字，不能评价声音、语速、发音、口音或情绪，不给伪精确分数。重点看结论是否清楚、论据是否充分、是否回应要求以及下一步行动。
 strengths列出本次回答真正做到的地方；improvements不超过3条，给可直接修改的建议。question贴合项目及本次重点，不重复已回答的问题，不一次问多个不相关问题。
 如引用材料，evidence必须使用合法documentId和连续原句；不要把用户口述自动当作已验证证据。没有材料证据时数组为空。
-反馈总体不超过350个中文字，问题不超过100字。只输出符合给定schema的JSON。`;
+这是实时语音对话，不要每轮重新审查完整汇报或要求用户重复全部内容。针对本轮发言先承接，再追问一个关键问题。按question、summary、strengths、improvements、evidence顺序输出。question不超过60字，summary不超过60字，strengths和improvements各最多1条且不超过40字，evidence最多1条短原文。总输出不超过200个中文字。只输出符合给定schema的JSON。`;
 
 async function coachTurn(input, ask) {
   const answer = typeof input.answer === 'string' ? input.answer.trim() : '';
