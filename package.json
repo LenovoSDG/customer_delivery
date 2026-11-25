@@ -4,7 +4,9 @@
   "description": "一个本地运行的项目交付与汇报助手原型。核心流程：创建项目 → 导入历史聊天或模拟机器人接入 → 确认需求并整理交付清单 → 上传交付材料 → 本地模型质检 → 模拟汇报问答。",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node --test tests/experience.test.js tests/model-provider.test.js tests/rehearsal.test.js tests/asr-service.test.js",
+    "test:core-legacy": "node --test tests/model-gateway.test.js tests/review.test.js"
   },
   "keywords": [],
   "author": "",
@@ -15,10 +17,15 @@
     "mammoth": "^1.13.0",
     "pdf-parse": "^2.4.5",
     "pg": "^8.23.1",
-    "@fugood/whisper.node": "1.2.0-rc.2",
-    "@fugood/node-whisper-win32-x64": "1.2.0-rc.2"
+    "@fugood/whisper.node": "1.2.0-rc.2"
   },
   "overrides": {
     "uuid": "11.1.1"
+  },
+  "optionalDependencies": {
+    "@fugood/node-whisper-win32-x64": "1.2.0-rc.2"
+  },
+  "devDependencies": {
+    "jsdom": "^29.0.0"
   }
 }

@@ -1,4 +1,4 @@
-﻿const {referencePrompt}=require('./delivery-knowledge');
+const {referencePrompt}=require('./delivery-knowledge');
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -158,12 +158,13 @@ function extractRequirements(messages) {
   }));
 }
 
-async function askModel(model,prompt) {
-  const result=await provider.chat({model,stream:false,messages:[{role:'user',content:prompt}]},AbortSignal.timeout(295000));
+async function askModel(model,prompt,signal) {
+  const result=await provider.chat({model,stream:false,messages:[{role:'user',content:prompt}]},signal?AbortSignal.any([signal,AbortSignal.timeout(295000)]):AbortSignal.timeout(295000));
   return result.message.content;
 }
 
 const server = http.createServer(async (req, res) => {
+  const cancellation=new AbortController();res.on('close',()=>{if(!res.writableEnded)cancellation.abort();});
   if (req.headers.host !== "127.0.0.1:" + PORT || req.headers["sec-fetch-site"] === "cross-site") return json(res,403,{error:"来源无效"});
   const origin = req.headers.origin;
   if (origin) {
@@ -193,6 +194,7 @@ const server = http.createServer(async (req, res) => {
       return json(res,200,await provider.transcribe(wav));
     } catch(e){return json(res,502,{error:e.message});}
   }
+  if(url.pathname==='/api/capabilities'&&req.method==='GET')return json(res,200,{windowsCapture:process.platform==='win32',localSpeech:provider.speechAvailable(),platform:process.platform});
   if (url.pathname === '/api/model-settings') {
     try {
       if(req.method==='GET')return json(res,200,provider.info());
@@ -200,11 +202,12 @@ const server = http.createServer(async (req, res) => {
       return json(res,405,{});
     }catch(error){return json(res,400,{error:error.message});}
   }
+  if(url.pathname==='/api/model-list'&&req.method==='POST'){try{return json(res,200,await provider.models(await readBody(req)));}catch(e){return json(res,400,{error:e.message});}}
   if (url.pathname === '/api/model-test' && req.method==='POST') {
     try{
-      const {model}=await readBody(req);
+      const {model,draft}=await readBody(req);
       const start=Date.now();
-      const reply=await askModel(model||'qwen3:4b','请只回复“连接成功”。');
+      const reply=draft?await provider.test(draft,model||'qwen3:4b'):await askModel(model||'qwen3:4b','请只回复“连接成功”。',cancellation.signal);
       return json(res,200,{ms:Date.now()-start,reply});
     }catch(error){return json(res,502,{error:error.message});}
   }
@@ -212,7 +215,7 @@ const server = http.createServer(async (req, res) => {
     try {
       const {model,rows}=await readBody(req);
       if (!Array.isArray(rows)||!rows.length||rows.some(r=>typeof r?.text!=='string')) return json(res,400,{error:'缺少候选原文'});
-      const result=await require('./customer-summary')(provider.chat,model || 'qwen3:4b',rows);
+      const result=await require('./customer-summary')((body,signal)=>provider.chat(body,AbortSignal.any([signal,cancellation.signal])),model || 'qwen3:4b',rows);
       return json(res,200,result);
     } catch(error){return json(res,400,{error:error.message});}
   }
@@ -221,7 +224,7 @@ const server = http.createServer(async (req, res) => {
       const input=await readBody(req),start=Date.now(),settings=provider.info();
       const model=settings.mode==='api'?settings.model:input.model;
       const result=await require('./rehearsal').coachTurn({...input,provider:settings.mode==='api'?'api':'ollama'},async(system,user,format)=>{
-        const r=await provider.chat({model,stream:false,format,messages:[{role:'system',content:system+'\n参考知识库，仅选与本轮有关的一项追问；示例不是项目事实。\n'+referencePrompt()},{role:'user',content:user}]},AbortSignal.timeout(295000));
+        const r=await provider.chat({model,stream:false,format,options:{num_predict:1200},messages:[{role:'system',content:system+'\n参考知识库，仅选与本轮有关的一项追问；示例不是项目事实。\n'+referencePrompt()},{role:'user',content:user}]},AbortSignal.any([cancellation.signal,AbortSignal.timeout(295000)]));
         return r.message.content;
       });
       return json(res,200,{...result,model,elapsedMs:Date.now()-start});
@@ -403,22 +406,25 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === '/api/review' && req.method === 'POST') {
     try {
       const { model, requirements, documents, rules } = await readBody(req);
+      if(!Array.isArray(requirements)||!requirements.length||requirements.some(r=>r.status!=='已确认'))return json(res,422,{error:'请先核对并确认客户需求'});
+      if(!Array.isArray(documents)||!documents.some(d=>typeof d.text==='string'&&d.text.trim()))return json(res,422,{error:'请添加可读的交付文档'});
       const requirementsText = (requirements || []).map(r => `- ${r.id} ${r.detail} [来源：${r.evidence}]`).join('\n');
       const documentText = (documents || []).map(d => `【${d.name}】\n${d.text}`).join('\n\n');
       if (model && model !== 'rules') {
         const prompt = `你是项目交付核验助手。只根据给定材料判断，不要编造。用户给出的检查规范：\n${rules || '无'}\n\n已确认/待确认需求（含来源）：\n${requirementsText || '暂无'}\n\n待核验交付材料：\n${documentText || '暂无'}\n\n请用中文输出：总体结论；逐项列出“问题/缺失、材料证据（文件名及原句）、关联需求、修改建议”；并指出需要人工确认的内容。若证据不足，明确写“无法判断”。`;
         try {
-          const answer = await askModel(model, prompt+'\n内置参考知识库（规则和示例不是项目事实）。按材料及场景选用适用规则；指出规则编号、材料原句、证据缺口及可执行的改写。未看到外部原文时标记待核验。\n'+referencePrompt());
+          const answer = await askModel(model, prompt+'\n内置参考知识库（规则和示例不是项目事实）。按材料及场景选用适用规则；指出规则编号、材料原句、证据缺口及可执行的改写。未看到外部原文时标记待核验。\n'+referencePrompt(),cancellation.signal);
+          if(answer.replace(/[^\p{L}\p{N}]/gu,'').length<20)throw Error('模型未返回完整审查意见，请重试');
           return json(res, 200, { mode: provider.info().mode==='api'?'api':'ollama', model:provider.info().mode==='api'?provider.info().model:model,answer });
         } catch (error) {
-          return json(res, 200, { mode: 'rules', warning: `模型调用失败，已回退到规则核对：${error.message}`, items: ruleReview(requirements || [], documents || [], rules || '') });
+          return json(res,502,{error:cancellation.signal.aborted?'检查已取消':'模型检查未完成：'+error.message});
         }
       }
       return json(res, 200, { mode: 'rules', items: ruleReview(requirements || [], documents || [], rules || '') });
     } catch (error) { return json(res, 400, { error: error.message }); }
   }
 const file = url.pathname === '/' ? 'index.html' : path.basename(url.pathname);
-  if (!['index.html','app.js','delivery-knowledge.js','style.css','speech-engine.js','rehearsal-ui.js','rehearsal.css','audio-capture-worklet.js'].includes(file)) return json(res,404,{});
+  if (!['index.html','app.js','delivery-knowledge.js','style.css','speech-engine.js','rehearsal-ui.js','rehearsal.css','experience.css','experience.js','audio-capture-worklet.js'].includes(file)) return json(res,404,{});
   const filePath = path.join(ROOT, file);
   if (!filePath.startsWith(ROOT)) return json(res, 403, { error: '禁止访问' });
   fs.readFile(filePath, (error, data) => {
@@ -450,3 +456,7 @@ databaseInit.finally(() => server.listen(PORT, process.env.HOST || '127.0.0.1', 
 
 
 
+
+server.on('close',()=>provider.close());
+
+for(const signal of ['SIGINT','SIGTERM'])process.once(signal,()=>{provider.close();server.close(()=>process.exit(0));setTimeout(()=>process.exit(0),2000).unref();});

@@ -16,6 +16,7 @@ function protect(value, decrypt=false) {
 }
 
 module.exports = function modelProvider(dir,ollama) {
+  const localASR=require('./asr-service').createASRService(__dirname);
   const file = path.join(dir,'model-provider.json');
   const defaults = {mode:process.env.TOKENDANCE_API_KEY && process.env.TOKENDANCE_MODEL?'api':'local',
     baseUrl:process.env.TOKENDANCE_BASE_URL||defaultUrl, model:process.env.TOKENDANCE_MODEL||''};
@@ -48,13 +49,13 @@ module.exports = function modelProvider(dir,ollama) {
     sessionKey=nextSession;
     return info();
   }
-  async function chat(body,signal,audio=false) {
-    const api=config.mode==='api';
+  async function chat(body,signal,audio=false,settings=config,draftKey) {
+    const api=settings.mode==='api';
     let url=ollama+'/api/chat',headers={'content-type':'application/json'};
     if(api){
-      const key=sessionKey||(config.secret?protect(config.secret,true):envKey());
+      const key=draftKey??(sessionKey||(settings.secret?protect(settings.secret,true):envKey()));
       if(!key)throw Error('缺少 API Key，请打开模型设置');
-      url=config.baseUrl+'/chat/completions';
+      url=settings.baseUrl+'/chat/completions';
       headers.authorization='Bearer '+key;
       const messages=body.messages.slice();
       if(body.format){
@@ -62,7 +63,7 @@ module.exports = function modelProvider(dir,ollama) {
         if(messages[0]?.role==='system')messages[0]={role:'system',content:messages[0].content+'\n'+spec};
         else messages.unshift({role:'system',content:spec});
       }
-      body=audio?{model:info().asrModel,messages,stream:false}:{model:config.model,messages,stream:false,temperature:body.options?.temperature??0.2,max_tokens:body.options?.num_predict||2048};
+      body=audio?{model:info().asrModel,messages,stream:false}:{model:settings.model,messages,stream:false,temperature:body.options?.temperature??0.2,max_tokens:body.options?.num_predict||8192,...(/^glm-(?:4\.[567](?:-|$)|5(?:\.[12])?(?:-|$))/i.test(settings.model)?{thinking:{type:'disabled'}}:{})};
     }
     const response=await fetch(url,{method:'POST',headers,body:JSON.stringify(body),signal,redirect:'error'});
     if(!response.ok){
@@ -74,11 +75,12 @@ module.exports = function modelProvider(dir,ollama) {
     const result=await response.json();
     if(!api)return result;
     const choice=result.choices?.[0], content=choice?.message?.content;
+    if(choice?.finish_reason==='length')throw Error('模型输出被截断，请缩小本次材料范围后重试');
     if(typeof content!=='string'||!content.trim())throw Error('模型 API 返回空内容');
     return {message:{content:content.trim().replace(/^\x60\x60\x60(?:json)?\s*([\s\S]*?)\s*\x60\x60\x60$/i,'$1')},done_reason:choice.finish_reason};
   }
   async function transcribe(wav) {
-    if(info().localSpeech)return require("./whisper-local")(wav);
+    if(info().localSpeech){if(localASR.status().available)return localASR.transcribe({pcm:Buffer.from(wav,'base64').subarray(44).toString('base64'),sampleRate:16000});return require('./whisper-local')(wav);}
     if(config.mode!=='api')throw Error('请在模型设置中启用 API 并保存语音转写模型。');
     if(info().asrModel==='deepseek-asr'){
       const key=sessionKey||(config.secret?protect(config.secret,true):envKey());
@@ -103,5 +105,25 @@ module.exports = function modelProvider(dir,ollama) {
       return {text,engine:'Windows 中文转写'};
     }
   }
-  return {chat,info,save,transcribe};
+  function draftSettings(input){
+    if(!['local','api'].includes(input.mode))throw Error('请选择本地模型或自定义 API');
+    if(input.mode==='local')return {settings:{mode:'local'}};
+    let endpoint;try{endpoint=new URL(input.baseUrl);}catch{throw Error('请填写完整的 HTTPS API 基础地址');}
+    if(endpoint.protocol!=='https:'||endpoint.username||endpoint.password||endpoint.search||endpoint.hash)throw Error('请填写 HTTPS API 基础地址');
+    const baseUrl=endpoint.href.replace(/\/+$/,'');
+    const key=String(input.key||'').trim()||(baseUrl===config.baseUrl?(sessionKey||(config.secret?protect(config.secret,true):envKey())):'');
+    if(!key)throw Error('请填写对应服务的 API Key');
+    return {settings:{mode:'api',baseUrl,model:String(input.model||'').trim()},key};
+  }
+  async function test(input, model){
+    const {settings,key}=draftSettings(input);if(settings.mode==='api'&&!settings.model)throw Error('请填写模型 ID');
+    return chat({model,stream:false,messages:[{role:'user',content:'请只回复“连接成功”。'}]},AbortSignal.timeout(30000),false,settings,key);
+  }
+  async function models(input){
+    const {settings,key}=draftSettings(input);
+    const response=await fetch(settings.mode==='api'?settings.baseUrl+'/models':ollama+'/api/tags',{headers:settings.mode==='api'?{authorization:'Bearer '+key}:{},redirect:'error',signal:AbortSignal.timeout(10000)});
+    if(!response.ok)throw Error('读取模型列表失败 · HTTP '+response.status);
+    const result=await response.json();return {models:settings.mode==='api'?(result.data||[]).map(m=>m.id).filter(id=>typeof id==='string'):(result.models||[]).map(m=>m.name)};
+  }
+  return {chat,info,save,transcribe,test,models,close:()=>localASR.close(),speechAvailable:()=>localASR.status().available||fs.existsSync(path.join(__dirname,'whisper-model.bin'))};
 };

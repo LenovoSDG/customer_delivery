@@ -12,7 +12,7 @@
   function controls() {
     el('micButton').textContent = micOn ? '停止录音' : phase === 'preparing' ? '取消语音准备' : active ? '开启连续录音' : '开始语音演练';
     el('micButton').dataset.recording = micOn; el('micButton').disabled = false;
-    el('finishVoiceTurn').disabled = !micOn || closingUtterance || !voiceAnswer();
+    el('finishVoiceTurn').disabled = !micOn || closingUtterance || !voiceAnswer();el('finishVoiceTurn').hidden=!micOn;el('startRehearsal').hidden=active;for(const id of ['pauseRehearsal','endRehearsal','readQuestion'])el(id).hidden=!active;document.querySelector('.voice-panel meter').hidden=!micOn;
     el('startRehearsal').disabled = busy() || active;
     el('sendAnswer').disabled = !active || paused || busy() || !input.value.trim(); input.readOnly = ['preparing','listening','transcribing','sending'].includes(phase);
     for (const id of ['audience','duration','rehearsalFocus']) el(id).disabled = active;
@@ -22,11 +22,11 @@
     el('answerCount').textContent = input.value.length;
     el('rehearsalClock').textContent = `${String(Math.floor(remaining / 60)).padStart(2,'0')}:${String(remaining % 60).padStart(2,'0')}`;
   }
-  function message(role, text) { const node = document.createElement('div'); node.className = role === 'user' ? 'user-message' : 'coach-message'; node.textContent = text; el('conversation').append(node); el('conversation').scrollTop = el('conversation').scrollHeight; }
+  function message(role, text) { const node = document.createElement('div'); node.className = role === 'user' ? 'user-message' : 'coach-message'; node.textContent = text; el('conversation').append(node); el('conversation').scrollTop = el('conversation').scrollHeight;return node; }
   function begin() {
     if (active) { paused = false; lastTick = Date.now(); controls(); return; }
     if(!el('duration').checkValidity()||!el('duration').value){el('duration').value='5'} session++; active = true; paused = false; remaining = Number(el('duration').value) * 60; lastTick = Date.now(); turns = 0; history = []; timeNotified = false; voiceTurn = null; voiceText = partialText = '';
-    const project = typeof activeProject === 'undefined' ? { ...state.project, requirements: state.requirements, docs: state.docs } : activeProject;
+    const project = typeof activeProject === 'undefined' ? { ...state.project, requirements: state.requirements.filter(r=>r.status==='已确认'), docs: state.docs } : activeProject;
     context = { project: { name: project.name, customer: project.customer }, requirements: structuredClone(project.requirements), documents: structuredClone(project.docs), rules: el('rules').value, audience: el('audience').value, durationMinutes: Number(el('duration').value), focus: el('rehearsalFocus').value };
     question = `请面向${context.audience}，介绍“${context.project.name}”的进展、交付依据和下一步计划。${context.focus ? '本次重点：' + context.focus : ''}`;
     el('conversation').replaceChildren(); message('assistant', question);
@@ -117,6 +117,7 @@
     inFlightTurn = turn;
     if (turn && voiceTurn === turn && !micOn) { voiceTurn = null; voiceText = partialText = ''; }
     if (turn) { turn.state = 'sending'; turn.meta.textContent = '已发送 · 教练正在回复'; turn.button.hidden = true; }
+    const pendingMessage=turn?null:message('user',answer);if(pendingMessage)pendingMessage.dataset.state='sending';
     const id = session; phase = 'sending'; request = new AbortController(); controls(); stopSpeech(); status(micOn ? '麦克风持续开启 · 教练正在回复，你可以继续补充。' : '教练正在回复…');
     try {
       const settings=await readProvider(); const selected={provider:settings.mode==="api"?"api":"ollama",model:settings.mode==="api"?settings.model:state.model}; if (id !== session) return;
@@ -124,16 +125,16 @@
       const response = await fetch('/api/rehearsal', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ ...context, ...selected, history, answer }), signal: request.signal });
       const result = await response.json(); if (id !== session) return; if (!response.ok) throw new Error(result.error || '教练请求失败');
       if (!result || typeof result.question !== 'string' || !result.question.trim() || typeof result.summary !== 'string' || !['strengths','improvements','evidence','warnings'].every(key => Array.isArray(result[key]))) throw new Error(result?.error || '教练反馈不完整，请重试');
-      if (turn) markVoice(turn, '已发送'); else message('user', answer); history.push({role:'user',content:answer}); question = `${result.summary}\n${result.question}`; message('assistant', question); history.push({role:'assistant',content:question}); if (!turn) input.value = ''; turns++;
+      if (turn) markVoice(turn, '已发送'); else if(pendingMessage)delete pendingMessage.dataset.state; history.push({role:'user',content:answer}); question = `${result.summary}\n${result.question}`; message('assistant', question); history.push({role:'assistant',content:question}); if (!turn) input.value = ''; turns++;
       const esc = escapeHtml;
       el('feedback').innerHTML = `<small>第${turns}轮 · ${esc(result.model)}${result.elapsedMs ? ' · 回复用时' + (result.elapsedMs / 1000).toFixed(1) + '秒' : ''} · 已核对材料引用</small><p>${esc(result.summary)}</p><h3>本轮做得好的地方</h3><ul>${result.strengths.map(s=>`<li>${esc(s)}</li>`).join('') || '<li>本轮暂无具体优势建议。</li>'}</ul><h3>下一轮如何改进</h3><ul>${result.improvements.map(s=>`<li>${esc(s)}</li>`).join('') || '<li>继续用材料验证关键结论。</li>'}</ul>${result.evidence.map(e=>`<blockquote>${esc(e.quote)}<br><small>${esc(e.file)} · 第${e.lineStart}行</small></blockquote>`).join('')}${result.warnings.map(w=>`<p>${esc(w)}</p>`).join('')}`;
       phase = micOn ? 'listening' : 'idle'; status(micOn ? '麦克风持续开启 · 可以直接回答下一问，无需点击录音。' : '本轮反馈已生成，可输入回答或开启连续录音。'); controls(); if (el('autoRead').checked && !voiceAnswer() && !voiceQueue.length) read();
-    } catch (error) { if (id === session && error.name !== 'AbortError') { phase = micOn ? 'listening' : 'idle'; if (turn) markVoice(turn, '回复失败 · 发言已保留，可重试', true); status(`${error.message}。回答已保留，可重试。`, true); controls(); } }
-    finally { if (id === session) { request = null; inFlightTurn = null; pumpVoiceQueue(); } }
+    } catch (error) { if(pendingMessage)pendingMessage.dataset.state='failed';if (id === session && error.name !== 'AbortError') { phase = micOn ? 'listening' : 'idle'; if (turn) markVoice(turn, '回复失败 · 发言已保留，可重试', true); status(`${error.message}。回答已保留，可重试。`, true); controls(); } }
+    finally { if (id === session) { request = null; inFlightTurn = null; pumpVoiceQueue();persistState(); } }
   }
   const synth = window.speechSynthesis;
   function localVoice() { return synth?.getVoices().find(v => v.localService && /^zh/i.test(v.lang)); }
-  function voices() { const supported = !!localVoice(); el('readQuestion').disabled = !supported || !question; el('autoRead').disabled = !supported; el('ttsStatus').textContent = supported ? (ttsActive ? '教练正在朗读，朗读结束后自动继续听。' : '自动朗读已就绪，麦克风保持开启，朗读结束后自动继续听。') : '当前浏览器没有本地中文语音，可直接阅读问题。'; }
+  function voices() { const supported = !!localVoice(); el('readQuestion').disabled = !supported || !question; el('autoRead').disabled = !supported; el('ttsStatus').textContent = supported ? (ttsActive ? '教练正在朗读，朗读结束后自动继续听。' : micOn?'自动朗读已就绪，麦克风保持开启，朗读结束后自动继续听。':'自动朗读已开启，教练回复后会朗读。') : '当前浏览器没有本地中文语音，可直接阅读问题。'; }
   function read() {
     if (ttsActive) return stopSpeech();
     const voice = localVoice(); if (!voice || !question || ['preparing','transcribing','sending'].includes(phase) || voiceAnswer() || voiceQueue.length) return;
@@ -145,30 +146,25 @@
     utterance.onend = complete; utterance.onerror = event => { complete(); el('ttsStatus').dataset.playback = 'error'; if (!['canceled','interrupted'].includes(event.error)) status('浏览器未能朗读，请检查系统声音或允许此页面播放声音；麦克风仍保持开启。', true); }; synth.speak(utterance); el('readQuestion').textContent = '停止朗读'; voices(); controls();
   }
   el('micButton').onclick = record; el('finishVoiceTurn').onclick = finishVoiceTurn;
-  el('startRehearsal').onclick = () => { begin(); status('文字演练已开始，输入汇报内容后发送。'); voices(); input.focus(); };
+  el('startRehearsal').onclick = () => { begin(); status('文字演练已开始，输入汇报内容后发送。'); voices(); input.focus();persistState(); };
   el('pauseRehearsal').onclick = () => { if (paused) { paused = false; lastTick = Date.now(); if (resumeMic) { resumeMic = false; record(); } else { status('演练已继续，可开始录音或输入。'); controls(); } } else interrupt('演练已暂停，麦克风和模型请求已停止。'); };
-  el('endRehearsal').onclick = () => interrupt(`演练结束，共完成${turns}轮。已保留对话、反馈与未发送文字。`, true);
+  el('endRehearsal').onclick = () => {interrupt(`演练结束，共完成${turns}轮。已保留对话、反馈与未发送文字。`, true);persistState();};
   el('sendAnswer').onclick = () => send(); input.oninput = controls;
   input.addEventListener('keydown', event => { if (!event.isComposing && event.key === 'Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); send(); } });
   el('autoRead').onchange = () => { if (!el('autoRead').checked) stopSpeech(); };
   el('readQuestion').onclick = read; if (synth) synth.addEventListener('voiceschanged', voices); voices();
   setInterval(() => { if (active && !paused) { const elapsed = Math.floor((Date.now() - lastTick)/1000); remaining = Math.max(0,remaining-elapsed); lastTick += elapsed*1000; if (!remaining && !timeNotified) { timeNotified = true; status(micOn ? '练习时间已到，麦克风仍开启。可继续演练或主动停止录音。' : '练习时间已到，可继续回答或结束演练。'); } controls(); voices(); } },1000);
   new MutationObserver(() => { if (!page.classList.contains('active') && active && !paused) interrupt('已离开演练页，练习自动暂停；返回后可继续。'); }).observe(page, {attributes:true,attributeFilter:['class']});
+  window.rehearsalSnapshot=()=>({active,remaining,history,turns,question,context,answer:input.value,audience:el('audience').value,duration:el('duration').value,focus:el('rehearsalFocus').value,feedback:el('feedback').innerHTML,model:el('coachModel').textContent,messages:[...el('conversation').children].map(node=>({role:node.classList.contains('user-message')?'user':'assistant',text:node.textContent}))});
   window.addEventListener('project-changed', () => {
-    const nextId = captureProject();
-    if (nextId === projectId) return;
-    interrupt('已切换项目，当前演练已暂停。');
-    projectSessions.set(projectId, { nodes: [...el('conversation').childNodes], feedback: el('feedback').innerHTML,
-      answer: input.value, audience: el('audience').value, duration: el('duration').value, focus: el('rehearsalFocus').value,
-      active, remaining, history, turns, question, context, model: el('coachModel').textContent });
-    projectId = nextId; const saved = projectSessions.get(projectId);
-    active = saved?.active || false; paused = active; remaining = saved?.remaining ?? 300;
-    history = saved?.history || []; turns = saved?.turns || 0; question = saved?.question || ''; context = saved?.context;
-    voiceTurn = null; voiceText = partialText = ''; resumeMic = false; timeNotified = false;
-    input.value = saved?.answer || ''; el('audience').value = saved?.audience || '客户项目负责人'; el('duration').value = saved?.duration || '5'; el('rehearsalFocus').value = saved?.focus || '';
-    if (saved) el('conversation').replaceChildren(...saved.nodes); else el('conversation').innerHTML = initialConversation;
-    el('feedback').innerHTML = saved?.feedback || initialFeedback; el('coachModel').textContent = saved?.model || '使用模型设置中的语言模型';
-    status(active ? '已恢复此项目的演练。点击继续演练后再回答。' : '选择演练方式开始当前项目的练习。'); controls();
+    interrupt('已切换项目，当前演练已暂停。');projectId=captureProject();
+    const saved=state.rehearsalData;
+    active=Boolean(saved?.active);paused=active;remaining=saved?.remaining??300;history=saved?.history||[];turns=saved?.turns||0;question=saved?.question||'';context=saved?.context;
+    voiceTurn=null;voiceText=partialText='';resumeMic=false;timeNotified=false;
+    input.value=saved?.answer||state.answerDraft||'';el('audience').value=saved?.audience||'客户项目负责人';el('duration').value=saved?.duration||'5';el('rehearsalFocus').value=saved?.focus||'';
+    if(saved?.messages?.length){el('conversation').replaceChildren();for(const item of saved.messages)message(item.role,item.text);}else el('conversation').innerHTML=initialConversation;
+    el('feedback').innerHTML=saved?.feedback||initialFeedback;el('coachModel').textContent=saved?.model||'使用模型设置中的语言模型';
+    status(active?'已恢复此项目的演练。点击继续演练后再回答。':'选择演练方式开始当前项目的练习。');controls();voices();
   });
   window.addEventListener('pagehide', () => interrupt('演练已停止。',true)); controls();
 })();

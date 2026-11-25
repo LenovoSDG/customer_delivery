@@ -5,7 +5,7 @@
 使用 Windows x64、Node.js 和 npm。随 1.14 桌面包验证的 Node.js 版本为 26.13.0。在本目录打开 PowerShell，执行：
 
 ```powershell
-npm.cmd ci --omit=optional
+npm.cmd ci --include=optional
 $env:APP_DATA_DIR = Join-Path $env:LOCALAPPDATA 'ZhiHuiDev'
 npm.cmd start
 ```
@@ -33,3 +33,23 @@ curl.exe -fL "https://modelscope.cn/models/cjc1887415157/whisper.cpp/resolve/mas
 - windows/Desk.cs 与 windows/Setup.cs 是桌面启动器和安装器源码。开发时用 npm start。发布用的 node.exe、模型和安装包单独分发。
 
 演练模块基于 LenovoSDG/customer_delivery 提交 b4be98acc08e97a03dde5bda753c0a0443d9ecf0。协作时保留原仓库提交历史及其已有测试。
+
+
+## 体验与开发验收
+
+- 主流程：导入沟通材料后自动整理需求，核对来源后确认，再上传交付材料、运行检查与汇报演练。
+- 演示项目独立创建，不覆盖已有项目。移除支持撤销，撤回需求确认会保留交付任务及材料。
+- 项目规范、回答草稿和报告自动保存；读取失败时暂停写入并提供重试。演练对话与反馈刷新后可恢复，录音不会自动恢复。
+- 模型来源只分本地和自定义 API。模型列表读取、连接测试均不保存草稿设置；保存设置后才切换。
+- 仅可读文档参与文字质检。模型失败、截断或无有效内容时保留上次报告，不将材料标为已检查。
+- Windows 截图与监测功能保留，在其他平台隐藏入口。Windows 本地语音需安装可选依赖和模型。Apple Silicon 若已安装 `.venv-asr` 与 `voice-models/whisper-turbo-q4`，自动使用已有的本机高精度识别；未安装时提供文字演练，不会自动转发音频到云端。
+
+```sh
+npm ci --include=optional
+npm test
+npm run test:core-legacy
+```
+
+`npm test` 检验当前 1.14 项目流程、模型路由、演练和本机识别输入边界。`test:core-legacy` 单独检验保留的旧版质检/网关模块。仓库原有的 `project-list`、`report-ui`、`model-settings` 等 UI 测试针对旧版主分支结构，当前版本新增 `experience.test.js` 验证实际加载的应用入口。
+
+本次验收记录见 [体验审查与验收](docs/experience-review.md)。
