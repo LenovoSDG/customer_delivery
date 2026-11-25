@@ -6,6 +6,7 @@
   <link rel="stylesheet" href="/style.css">
   <link rel="stylesheet" href="/report.css">
   <link rel="stylesheet" href="/model-settings.css">
+  <link rel="stylesheet" href="/rehearsal.css">
 </head>
 <body>
   <header class="topbar">
@@ -65,42 +66,26 @@
       <section class="page" id="page-materials"><div class="page-heading"><div><div class="eyebrow">项目交付</div><h1>交付材料</h1><p>上传销售或产品准备的文档、图片和视频，并关联对应清单项。</p></div><button class="primary" id="docPick">＋ 上传材料</button><input hidden type="file" id="docInput" multiple accept=".txt,.md,.csv,.png,.jpg,.jpeg,.webp,.mp4,.webm,.pdf,.docx,.xlsx"></div><div class="surface material-toolbar"><div class="filter-pills"><button class="filter-pill active">全部材料 <span id="materialCount">0</span></button><button class="filter-pill">待检查</button><button class="filter-pill">已检查</button></div><span class="supported">文档 · 图片 · 视频　|　文本质检支持 TXT / MD / CSV / DOCX / PDF / Excel（XLSX）</span></div><div id="materialsList" class="material-grid"><div class="empty-state wide"><div class="empty-symbol">▤</div><b>还没有上传交付材料</b><span>上传文件后，为材料关联清单项并运行质量检查。</span><button class="secondary" id="emptyUpload">选择项目文件</button></div></div><div class="flow-actions"><span>材料上传完成后，运行项目级质量检查。</span><button class="primary" data-next="quality">下一步：质量检查 →</button></div></section>
       <section class="page" id="page-quality"><div class="page-heading"><div><h1>质量检查</h1><p>对照确认后的客户需求、交付清单和项目规范检查材料。</p></div><button class="primary" id="runReview">运行项目检查 →</button></div><div class="quality-summary"><div><b id="qualityReqs">0</b><span>确认需求</span></div><div><b id="qualityDocs">0</b><span>项目材料</span></div><div><b id="qualityIssues">待运行</b><span>待补充检查点</span></div><div><b id="qualityModel">本地模型</b><span>检查方式</span></div></div><section class="surface report-surface"><div class="surface-heading"><div><h2>检查结果</h2><p>每条问题显示关联需求、材料证据和修改建议。</p></div><span class="local-pill" id="reviewProviderBadge">调用本机 Ollama</span></div><div id="report" class="empty-state"><div class="empty-symbol">✓</div><b>准备好材料后运行检查</b><span>逐条展示核验结论、材料原文和待确认项。</span></div></section><div class="flow-actions"><span>检查完成后，进入汇报演练准备讲解和答疑。</span><button class="primary" data-next="rehearsal">下一步：汇报演练 →</button></div></section>
       <section class="page" id="page-rehearsal">
-        <div class="page-heading">
-          <div><h1>模拟汇报与问答</h1><p>练习回答客户或评审的追问，获得具体反馈。</p></div>
-          <span class="local-pill" id="rehearsalProvider">调用本机 Ollama</span>
-        </div>
+        <div class="page-heading"><div><h1>模拟汇报与问答</h1><p>先讲清结论，再用项目证据回应追问。</p></div><span class="local-pill">本机语音识别 · 自动朗读反馈</span></div>
         <div class="rehearsal-grid">
           <section class="surface rehearsal-setup">
-            <div class="surface-heading"><h2>演练设置</h2></div>
+            <div class="surface-heading"><div><h2>演练设置</h2><p>选择听众和重点，围绕当前项目练习。</p></div></div>
             <label>模拟听众<select id="audience"><option>客户项目负责人</option><option>公司领导</option><option>技术评审团队</option></select></label>
-            <label>汇报时长<select id="duration"><option>5 分钟</option><option>10 分钟</option><option>15 分钟</option></select></label>
-            <label>本次重点<textarea id="rehearsalFocus" maxlength="400" placeholder="例如：数据指标解释、上线安排和安全保障"></textarea></label>
-            <div class="rehearsal-actions">
-              <button class="primary" id="startRehearsal" type="button">开始文字演练</button>
-              <button class="secondary" id="micButton" type="button">🎙 语音演练演示</button>
-            </div>
-            <p id="rehearsalDestination" class="rehearsal-note">项目内容与回答由本机 Ollama 处理。</p>
+            <label>练习时长<select id="duration"><option value="5">5 分钟</option><option value="10">10 分钟</option><option value="15">15 分钟</option></select></label>
+            <label>本次重点<textarea id="rehearsalFocus" maxlength="1000" placeholder="例如：数据口径、上线安排与安全保障。"></textarea></label>
+            <div class="rehearsal-actions"><button class="primary" id="micButton">开始语音演练</button><button class="secondary" id="finishVoiceTurn" disabled>说完了，立即回复</button><button class="secondary" id="startRehearsal">开始文字演练</button></div>
+            <div class="voice-panel"><p id="voiceStatus" role="status" aria-live="polite">点击开始后请求麦克风权限，首次加载中文模型约42 MB。</p><meter id="voiceLevel" min="0" max="1" value="0" aria-label="音频输入音量"></meter></div>
           </section>
           <section class="surface coach-surface">
-            <div class="coach-head">
-              <div class="coach-avatar">AI</div>
-              <b>汇报教练</b>
-              <span id="rehearsalStatus" class="coach-live" role="status">待开始</span>
-            </div>
-            <div class="conversation" id="conversation" role="log" aria-label="演练问答">
-              <div class="coach-message">点击「开始文字演练」，由 AI 生成第一个问题。</div>
-            </div>
-            <div id="rehearsalError" class="rehearsal-error" role="alert"></div>
-            <div class="answer-box">
-              <textarea id="answerInput" aria-label="回答当前问题" maxlength="800" placeholder="等首问生成后即可回答" disabled></textarea>
-              <button class="primary" id="sendAnswer" type="button" disabled>发送</button>
-            </div>
+            <div class="coach-head"><div class="coach-avatar">AI</div><div><b>汇报教练</b><small id="coachModel">使用模型设置中的语言模型</small></div><span class="coach-live" role="status">待开始</span></div>
+            <div class="session-toolbar"><span id="rehearsalClock">05:00</span><button class="text-button" id="pauseRehearsal" disabled>暂停</button><button class="text-button" id="endRehearsal" disabled>结束演练</button><button class="text-button" id="readQuestion" disabled>朗读问题</button><label class="read-option"><input type="checkbox" id="autoRead" checked>自动朗读</label></div>
+            <p id="ttsStatus" class="tts-note">仅使用浏览器提供的本地中文语音。</p>
+            <div class="conversation" id="conversation" role="log" aria-label="演练对话" aria-live="polite"><div class="coach-message">开始后，请先介绍项目进展、交付依据与下一步计划。我会根据你的回答给出反馈，并追问一个具体问题。</div></div>
+            <div class="answer-box"><label for="answerInput">文字回答（可选）<textarea id="answerInput" maxlength="4000" placeholder="也可以在这里输入文字回答。语音发言直接显示在上方对话中。"></textarea></label><button class="primary" id="sendAnswer" disabled>发送给教练</button></div>
+            <p class="answer-help">Enter换行，Ctrl / ⌘ + Enter发送 · <span id="answerCount">0</span>/4000字</p>
           </section>
         </div>
-        <section class="surface feedback-surface">
-          <div class="surface-heading"><h2>演练反馈</h2></div>
-          <div id="feedback" class="feedback-placeholder" aria-live="polite">回答后，这里会显示本轮反馈。</div>
-        </section>
+        <section class="surface feedback-surface"><div class="surface-heading"><div><h2>本轮反馈</h2><p>评估回答结构与证据；不根据转写文字判断语速、发音或情绪。</p></div></div><div id="feedback" class="feedback-placeholder">发送第一轮回答后，显示优势、具体修改建议与材料引用。</div></section>
       </section>
       <footer><span>项目交付助手 · Demo v0.2</span><span id="processingNotice">模型来源决定质检数据的处理位置 · 外部聊天平台连接当前为演示状态</span></footer>
     </main>
@@ -120,12 +105,12 @@
   <dialog id="settingsDialog" class="model-settings" aria-labelledby="modelSettingsTitle">
     <form method="dialog" id="modelSettingsForm">
       <div class="dialog-head"><h2 id="modelSettingsTitle">模型设置</h2><button class="close" id="closeModelSettings" type="button" aria-label="关闭模型设置">×</button></div>
-      <p class="dialog-copy">选择交付质检与文字演练使用的模型。截图识别仍使用本机视觉模型。</p>
+      <p class="dialog-copy">选择交付质检与汇报演练使用的模型。截图识别仍使用本机视觉模型。</p>
       <label for="modelProvider">模型来源</label>
       <select id="modelProvider"><option value="ollama">本地模型 · Ollama</option><option value="bohrium">API 模型 · 玻尔 Bohrium</option><option value="deepseek">API 模型 · DeepSeek</option><option value="custom">自定义 API</option></select>
       <section id="localModelPanel">
         <label for="modelName">本地模型名称</label><input id="modelName" placeholder="例如 qwen3-local:4b">
-        <p class="model-help">质检与文字演练内容在本机 Ollama 中处理。</p>
+        <p class="model-help">质检与汇报演练内容在本机 Ollama 中处理。</p>
         <div class="settings-actions"><button class="secondary" id="checkConnection" type="button">检测本地模型</button><span class="connection" id="connectionStatus" role="status">等待检测</span></div>
       </section>
       <section id="apiModelPanel" hidden>
@@ -135,7 +120,7 @@
         <div class="settings-actions"><button class="secondary" id="refreshApiModels" type="button">读取模型列表</button></div>
         <label for="apiModelName">API 模型</label><input id="apiModelName" list="apiModelOptions" placeholder="输入名称搜索，或填写完整模型 ID" autocomplete="off"><datalist id="apiModelOptions"></datalist>
         <p class="model-help" id="apiModelsStatus" role="status">配置密钥后读取可见模型，也可直接填写模型 ID。请选择支持文本聊天的模型。</p>
-        <p class="model-disclosure">质检时，需求、检查规范和材料文本将发送至玻尔网关。文字演练会发送项目摘要、材料摘录和近期问答。密钥保存在本机后端。</p>
+        <p class="model-disclosure">质检时，需求、检查规范和材料文本将发送至玻尔网关。汇报演练会发送项目摘要、材料摘录和近期问答。密钥保存在本机后端。</p>
       </section>
       <section id="deepseekModelPanel" hidden>
         <label for="deepseekModelName">DeepSeek 模型 ID</label>
@@ -144,7 +129,7 @@
         <label for="deepseekKey">DeepSeek API 密钥</label>
         <input id="deepseekKey" type="password" autocomplete="new-password" spellcheck="false">
         <p class="model-help" id="deepseekKeyStatus"></p>
-        <p class="model-disclosure">质检和文字演练会将相应的项目文本和问答发送给 DeepSeek。密钥由本机后端保存。</p>
+        <p class="model-disclosure">质检和汇报演练会将相应的项目文本和问答发送给 DeepSeek。密钥由本机后端保存。</p>
       </section>
       <section id="customModelPanel" hidden>
         <label for="customBaseUrl">API 基础地址</label>
@@ -155,7 +140,7 @@
         <label for="customKey">API 密钥（可选）</label>
         <input id="customKey" type="password" autocomplete="new-password" spellcheck="false">
         <p class="model-help" id="customKeyStatus"></p>
-        <p class="model-disclosure">质检和文字演练会把相应的项目文本发送至你填写的地址。</p>
+        <p class="model-disclosure">质检和汇报演练会把相应的项目文本发送至你填写的地址。</p>
       </section>
       <div id="modelSettingsStatus" class="settings-status" role="status" aria-live="polite"></div>
       <div class="dialog-actions"><button class="secondary" id="cancelModelSettings" type="button">取消</button><button class="primary" value="save" id="saveSettings">保存设置</button></div>
@@ -167,5 +152,6 @@
   <script src="/app.js"></script>
   <script src="/model-settings.js"></script>
   <script src="/report-ui.js"></script>
+  <script src="/speech-engine.js"></script>
   <script src="/rehearsal-ui.js"></script>
 </body></html>

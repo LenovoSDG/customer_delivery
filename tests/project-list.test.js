@@ -19,6 +19,7 @@ function setup(t, { storage = {}, rehearsal = false } = {}) {
   for (const [key, value] of Object.entries(storage)) win.localStorage.setItem(key, value);
   const files = ['app.js', 'report-ui.js'];
   if (rehearsal) {
+    win.structuredClone = structuredClone; win.SpeechEngine = class { cancel() {} setMuted() {} };
     win.ModelSettings = {
       providerLabel: () => '本机 Ollama',
       selection: async () => ({ provider: 'ollama', model: 'qwen3:4b' })
@@ -214,7 +215,7 @@ test('rehearsal and WeChat events stay with the project that started them', asyn
   let finishRehearsal;
   win.fetch = async (url, options) => {
     if (url === '/api/rehearsal') {
-      assert.equal(JSON.parse(options.body).project, demo.querySelector('h2').textContent);
+      assert.equal(JSON.parse(options.body).project.name, demo.querySelector('h2').textContent);
       return new Promise(resolve => { finishRehearsal = resolve; });
     }
     assert.match(url, /^\/api\/wechat\/capture\/status\?after=/);
@@ -229,20 +230,24 @@ test('rehearsal and WeChat events stay with the project that started them', asyn
       })
     };
   };
-  const rehearsing = el('startRehearsal').onclick();
-  await Promise.resolve();
+  el('startRehearsal').onclick();
+  el('answerInput').value = '原项目回答'; el('answerInput').dispatchEvent(new win.Event('input'));
+  const rehearsing = el('sendAnswer').onclick();
+  await new Promise(setImmediate);
   createProject(el, '新项目');
   await win.pollCapture();
-  finishRehearsal({ ok: true, json: async () => ({ question: '原项目的首问' }) });
+  finishRehearsal({ ok: true, json: async () => ({ question: '过期的原项目追问', summary: '反馈', strengths: [], improvements: [], evidence: [], warnings: [], model: 'qwen3:4b' }) });
   await rehearsing;
   assert.equal(el('reqCount').textContent, '0');
-  assert.doesNotMatch(el('conversation').textContent, /原项目的首问/);
+  assert.doesNotMatch(el('conversation').textContent, /过期的原项目追问/);
   assert.equal(el('stopWechatCapture').disabled, true);
 
   demo.querySelector('button').click();
   assert.equal(el('reqCount').textContent, '1');
   assert.match(el('captureEvents').textContent, /操作手册/);
-  assert.match(el('conversation').textContent, /原项目的首问/);
+  assert.doesNotMatch(el('conversation').textContent, /过期的原项目追问/);
+  assert.match(el('conversation').textContent, /凌云办公协同升级/);
+  assert.equal(el('answerInput').value, '原项目回答');
   assert.equal(el('stopWechatCapture').disabled, false);
 });
 

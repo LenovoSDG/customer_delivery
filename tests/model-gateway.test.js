@@ -125,3 +125,10 @@ test('custom API uses the saved address, keeps its key scoped to that address, a
     { url: 'https://api.deepseek.com/chat/completions', authorization: 'Bearer test-deepseek-key', model: 'deepseek-flash' }
   ]);
 });
+
+test('interactive GLM coaching disables reasoning and bounds output without changing quality review requests', async t => {
+  const bodies=[];const {gateway}=setup(t,async(url,options)=>{bodies.push(JSON.parse(options.body));return Response.json({choices:[{finish_reason:'stop',message:{content:'{"question":"何时交付？"}'}}]});});
+  gateway.saveConfig({provider:'bohrium',apiKey:'test-only-key',apiModel:'glm-5.2'});
+  await gateway.ask('glm-5.2','s','c',{}, {interactive:true});await gateway.ask('glm-5.2','s','c',{});await gateway.ask('glm-5.3','s','c',{}, {interactive:true});await gateway.ask('other-model','s','c',{}, {interactive:true});
+  assert.deepEqual(bodies[0].thinking,{type:'disabled'});assert.equal(bodies[0].max_tokens,1200);assert.equal(bodies[1].thinking,undefined);assert.equal(bodies[1].max_tokens,undefined);assert.equal(bodies[2].thinking,undefined);assert.equal(bodies[3].thinking,undefined);
+});

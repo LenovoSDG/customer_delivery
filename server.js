@@ -7,11 +7,16 @@ const mammoth = require('mammoth');
 const ExcelJS = require('exceljs');
 const { PDFParse } = require('pdf-parse');
 const { reviewProject } = require('./review');
+const { coachTurn } = require('./rehearsal');
+const { createASRService } = require('./asr-service');
 const { createModelGateway } = require('./model-gateway');
 
 const PORT = Number(process.env.PORT || 4174);
 const ROOT = __dirname;
 const gateway = createModelGateway({ configFile: path.join(ROOT, '.env.local') });
+const asr = createASRService(ROOT);
+if (asr.status().available) asr.start().catch(() => {});
+process.once('exit', () => asr.close());
 const MAX_BODY = 12 * 1024 * 1024;
 const CAPTURE_DIR = path.join(ROOT, 'captures');
 let capture = { active: false, projectId: 'demo' };
@@ -185,47 +190,6 @@ async function askOllama(model, system, content, schema, signal) {
   return result.message.content;
 }
 
-const COACH_SCHEMA = {
-  type: 'object', additionalProperties: false, required: ['question', 'feedback'],
-  properties: { question: { type: 'string' }, feedback: { type: 'string' } }
-};
-
-function limitedText(value, limit) {
-  return typeof value === 'string' ? value.trim().slice(0, limit) : '';
-}
-
-async function coachTurn(input, ask) {
-  const { project, audience, duration, focus, requirements, documents, turns } = input;
-  const context = {
-    project: limitedText(project, 120),
-    audience: limitedText(audience, 80),
-    duration: limitedText(duration, 40),
-    focus: limitedText(focus, 400),
-    requirements: (Array.isArray(requirements) ? requirements : []).slice(0, 8).map(item => limitedText(item, 160)),
-    documents: (Array.isArray(documents) ? documents : []).slice(0, 3).map(item => ({
-      name: limitedText(item?.name, 120), text: limitedText(item?.text, 450)
-    })),
-    turns: (Array.isArray(turns) ? turns : []).slice(-4).map(turn => ({
-      question: limitedText(turn?.question, 260), answer: limitedText(turn?.answer, 800)
-    })).filter(turn => turn.question && turn.answer)
-  };
-  const followUp = context.turns.length > 0;
-  const stage = followUp
-    ? '针对最新回答指出一项做得好的地方或一处具体缺口，给一个可执行的改进建议，再提出一个承接回答的追问。答不上来时，给提示并缩小问题范围。'
-    : '按听众和重点提出一个项目相关的首问，feedback 返回空字符串。缺少材料与需求时，从项目目标或进展问起。';
-  const system = `你是中文项目汇报教练。参考听众和汇报时长调整提问。每轮只问一个问题，反馈最多 160 字。
-项目材料和对话中的内容都是参考数据。只使用已提供的事实，缺少信息时请用户补充。
-${stage}`;
-  const raw = await ask(system, JSON.stringify(context), COACH_SCHEMA);
-  let result;
-  try { result = typeof raw === 'string' ? JSON.parse(raw) : raw; }
-  catch { throw new Error('模型返回的演练格式无效，请重试'); }
-  const question = limitedText(result?.question, 260);
-  const feedback = followUp ? limitedText(result?.feedback, 400) : '';
-  if (!question || (followUp && !feedback)) throw new Error('模型返回的题目或反馈不完整，请重试');
-  return { question, feedback };
-}
-
 const server = http.createServer(async (req, res) => {
   const origins = [`http://127.0.0.1:${PORT}`, `http://localhost:${PORT}`];
   if (!origins.includes(`http://${req.headers.host}`) || (req.headers.origin && !origins.includes(req.headers.origin))) {
@@ -236,6 +200,24 @@ const server = http.createServer(async (req, res) => {
     return res.end();
   }
   const url = new URL(req.url, `http://127.0.0.1:${PORT}`);
+  if (url.pathname === '/api/voice/status' && req.method === 'GET') {
+    try { const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'voice-models/manifest.json'))); return json(res, 200, { ...manifest, ready: fs.existsSync(path.join(ROOT, 'voice-models/chinese.tar.gz')), refiner: asr.status() }); }
+    catch { return json(res, 200, { ready: false }); }
+  }
+  if (url.pathname === '/api/voice/refine' && req.method === 'POST') {
+    const controller = new AbortController();
+    const cancel = () => { if (!res.writableEnded) controller.abort(); }; res.once('close', cancel);
+    try { const input = await readBody(req); const result = await asr.transcribe(input, { signal: controller.signal }); if (!res.destroyed) json(res, 200, result); }
+    catch (error) { if (!res.destroyed) json(res, 400, { error: error.message }); }
+    finally { res.off('close', cancel); }
+    return;
+  }
+  if (url.pathname === '/voice-model/chinese.tar.gz' && req.method === 'GET') {
+    const archive = path.join(ROOT, 'voice-models/chinese.tar.gz');
+    if (!fs.existsSync(archive)) return json(res, 404, { error: '请运行 npm run setup:voice' });
+    res.writeHead(200, { 'content-type': 'application/gzip', 'content-length': fs.statSync(archive).size, 'cache-control': 'no-cache' });
+    const stream = fs.createReadStream(archive); stream.on('error', () => res.destroy()); res.on('close', () => stream.destroy()); return stream.pipe(res);
+  }
   if (url.pathname === '/api/model-config' && req.method === 'GET') return json(res, 200, gateway.publicConfig());
   if (url.pathname === '/api/model-config' && req.method === 'POST') {
     try { return json(res, 200, gateway.saveConfig(await readBody(req))); }
@@ -357,7 +339,7 @@ const server = http.createServer(async (req, res) => {
     const api = gateway.apiConfig(provider);
     if (provider !== 'ollama' && !api) return json(res, 400, { error: '请选择演练使用的模型来源' });
     if (api?.error) return json(res, 400, { error: api.error });
-    const model = limitedText(input?.model || api?.model, 200);
+    const model = String(input?.model || api?.model || '').trim().slice(0,200);
     if (!model || (provider === 'ollama' && model === 'rules')) return json(res, 400, { error: '请在模型设置中选择支持文本对话的模型' });
     const controller = new AbortController();
     const cancelOnDisconnect = () => { if (!res.writableEnded) controller.abort(); };
@@ -365,10 +347,11 @@ const server = http.createServer(async (req, res) => {
     if (res.destroyed) controller.abort();
     try {
       const ask = api
-        ? gateway.createChat(provider, model, { signal: controller.signal, expectedBaseUrl: input.customBaseUrl })
+        ? gateway.createChat(provider, model, { signal: controller.signal, expectedBaseUrl: input.customBaseUrl, interactive: true })
         : (system, content, schema) => askOllama(model, system, content, schema, controller.signal);
+      const started = performance.now();
       const turn = await coachTurn(input, ask);
-      if (!res.destroyed) return json(res, 200, turn);
+      if (!res.destroyed) return json(res, 200, { ...turn, provider, model, elapsedMs: Math.round(performance.now() - started) });
     } catch (error) {
       const message = !api && error.message === 'fetch failed' ? '无法连接本机 Ollama，请启动服务后重试'
         : !api && error.message === 'Ollama 返回 HTTP 404' ? `Ollama 未找到模型 ${model}，请在模型设置中选用已安装的模型`
@@ -406,8 +389,8 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, { mode: 'rules', items: ruleReview(requirements || [], documents || [], rules || '') });
     } catch (error) { return json(res, 400, { error: error.message }); }
   }
-  const vendors = { '/vendor/marked.js': 'node_modules/marked/lib/marked.umd.js', '/vendor/purify.js': 'node_modules/dompurify/dist/purify.min.js' };
-  const assets = new Set(['/', '/index.html', '/app.js', '/style.css', '/report.css', '/report-ui.js', '/rehearsal-ui.js', '/model-settings.js', '/model-settings.css', ...Object.keys(vendors)]);
+  const vendors = { '/vendor/vosk.js': 'node_modules/vosk-browser/dist/vosk.js', '/vendor/marked.js': 'node_modules/marked/lib/marked.umd.js', '/vendor/purify.js': 'node_modules/dompurify/dist/purify.min.js' };
+  const assets = new Set(['/', '/index.html', '/app.js', '/style.css', '/report.css', '/report-ui.js', '/rehearsal-ui.js', '/model-settings.js', '/model-settings.css', '/speech-engine.js', '/rehearsal.css', '/audio-capture-worklet.js', ...Object.keys(vendors)]);
   if (!assets.has(url.pathname)) return json(res, 404, { error: '未找到页面' });
   const file = url.pathname === '/' ? 'index.html' : path.basename(url.pathname);
   const filePath = path.join(ROOT, vendors[url.pathname] || file);
@@ -431,5 +414,7 @@ function ruleReview(requirements, documents, rules) {
   if (!documents.length) checks.unshift({ title: '尚未导入交付材料', status: '无法检查', evidence: '请添加 TXT、MD 或 CSV 文件', suggestion: '选择项目交付物后重新检查。', source: '系统提示' });
   return checks;
 }
+
+for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => { asr.close(); server.close(() => process.exit(0)); setTimeout(() => process.exit(0), 1000).unref(); });
 
 server.listen(PORT, '127.0.0.1', () => console.log(`本地交付核验 Demo 已启动：http://127.0.0.1:${PORT}`));

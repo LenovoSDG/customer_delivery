@@ -5,3 +5,6 @@ outputs/
 .env.*
 !.env.example
 .model-config-*.tmp
+voice-models/
+.venv-asr/
+__pycache__/

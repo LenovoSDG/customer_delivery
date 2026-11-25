@@ -1,165 +1,174 @@
-(function () {
-  'use strict';
-
-  const start = $('#startRehearsal');
-  const send = $('#sendAnswer');
-  const input = $('#answerInput');
-  const conversation = $('#conversation');
-  const audience = $('#audience');
-  const duration = $('#duration');
-  const focus = $('#rehearsalFocus');
-  const initialMessage = '点击「开始文字演练」，由 AI 生成第一个问题。';
-  const initialFeedback = '回答后，这里会显示本轮反馈。';
-
-  function renderMessages(messages) {
-    conversation.replaceChildren(...messages.map(({ kind, text, label }) => {
-      const message = document.createElement('div');
-      message.className = kind;
-      if (label) {
-        const heading = document.createElement('b');
-        heading.textContent = label;
-        message.append(heading, document.createElement('br'));
-      }
-      message.append(text);
-      return message;
-    }));
-    conversation.scrollTop = conversation.scrollHeight;
+(() => {
+  const el = id => document.getElementById(id);
+  const page = el('page-rehearsal'), input = el('answerInput');
+  const projectSessions = new Map();
+  let projectId = typeof activeProject === 'undefined' ? 'default' : activeProject.id;
+  const initialConversation = el('conversation').innerHTML, initialFeedback = el('feedback').innerHTML;
+  let active = false, paused = false, phase = 'idle', remaining = 300, lastTick = Date.now(), history = [], turns = 0, session = 0, request, question = '', context;
+  let voiceTurn = null, voiceText = '', partialText = '', lastSpeechAt = 0;
+  let micOn = false, captureToken = 0, closingUtterance = false, voiceQueue = [], ttsActive = false, timeNotified = false, inFlightTurn = null, resumeMic = false;
+  const busy = () => ['preparing','listening','transcribing','sending'].includes(phase);
+  function status(text, error = false) { el('voiceStatus').textContent = text; el('voiceStatus').classList.toggle('voice-error', error); }
+  function controls() {
+    el('micButton').textContent = micOn ? '停止录音' : phase === 'preparing' ? '取消语音准备' : active ? '开启连续录音' : '开始语音演练';
+    el('micButton').dataset.recording = micOn; el('micButton').disabled = false;
+    el('finishVoiceTurn').disabled = !micOn || closingUtterance || !voiceAnswer();
+    el('startRehearsal').disabled = busy() || active;
+    el('sendAnswer').disabled = !active || paused || busy() || !input.value.trim(); input.readOnly = ['preparing','listening','transcribing','sending'].includes(phase);
+    for (const id of ['audience','duration','rehearsalFocus']) el(id).disabled = active;
+    el('pauseRehearsal').disabled = !active; el('endRehearsal').disabled = !active;
+    el('pauseRehearsal').textContent = paused ? '继续演练' : '暂停';
+    document.querySelector('#page-rehearsal .coach-live').textContent = !active ? turns ? '已结束' : '待开始' : paused ? '已暂停' : ttsActive ? '教练正在说话' : phase === 'sending' ? '教练思考中' : '演练中';
+    el('answerCount').textContent = input.value.length;
+    el('rehearsalClock').textContent = `${String(Math.floor(remaining / 60)).padStart(2,'0')}:${String(remaining % 60).padStart(2,'0')}`;
   }
-
-  function updateControls() {
-    const session = activeProject.rehearsal;
-    const busy = Boolean(session?.pending);
-    const ready = Boolean(session?.question);
-    start.disabled = busy;
-    start.textContent = ready ? '重新开始演练' : '开始文字演练';
-    input.disabled = busy || !ready;
-    input.placeholder = ready ? '输入对当前问题的回答…' : '等首问生成后即可回答';
-    send.disabled = input.disabled || !input.value.trim();
+  function message(role, text) { const node = document.createElement('div'); node.className = role === 'user' ? 'user-message' : 'coach-message'; node.textContent = text; el('conversation').append(node); el('conversation').scrollTop = el('conversation').scrollHeight; }
+  function begin() {
+    if (active) { paused = false; lastTick = Date.now(); controls(); return; }
+    session++; active = true; paused = false; remaining = Number(el('duration').value) * 60; lastTick = Date.now(); turns = 0; history = []; timeNotified = false; voiceTurn = null; voiceText = partialText = '';
+    const project = typeof activeProject === 'undefined' ? { ...state.project, requirements: state.requirements, docs: state.docs } : activeProject;
+    context = { project: { name: project.name, customer: project.customer }, requirements: structuredClone(project.requirements), documents: structuredClone(project.docs), rules: el('rules').value, audience: el('audience').value, durationMinutes: Number(el('duration').value), focus: el('rehearsalFocus').value };
+    question = `请面向${context.audience}，介绍“${context.project.name}”的进展、交付依据和下一步计划。${context.focus ? '本次重点：' + context.focus : ''}`;
+    el('conversation').replaceChildren(); message('assistant', question);
+    el('feedback').textContent = '发送回答后，教练会结合已确认需求与可读材料给出本轮反馈。'; controls();
   }
-
-  function renderRehearsal() {
-    const session = activeProject.rehearsal;
-    input.value = session?.answer || '';
-    renderMessages(session?.messages || [{ kind: 'coach-message', text: initialMessage }]);
-    $('#rehearsalStatus').textContent = session?.status || '待开始';
-    $('#rehearsalError').textContent = session?.error || '';
-    $('#feedback').textContent = session?.feedback || initialFeedback;
-    updateControls();
-  }
-
-  function renderSetup() {
-    const setup = activeProject.rehearsalSetup;
-    audience.selectedIndex = setup?.audience ?? 0;
-    duration.selectedIndex = setup?.duration ?? 0;
-    focus.value = setup?.focus || '';
-    renderRehearsal();
-  }
-
-  function updateModel() {
-    const remote = state.provider !== 'ollama';
-    const model = remote ? state.apiModel : state.model;
-    const source = window.ModelSettings.providerLabel(state.provider);
-    $('#rehearsalProvider').textContent = !remote && model === 'rules' ? '请选择对话模型' : `调用 ${source}`;
-    $('#rehearsalDestination').textContent = remote
-      ? `项目摘要、材料摘录及最近四轮问答会发送至 ${window.ModelSettings.destinationLabel(state.provider)}。`
-      : '项目内容与回答由本机 Ollama 处理。';
-    for (const project of projects.values()) {
-      const session = project.rehearsal;
-    if (session?.selection && (state.provider !== session.selection.provider || model !== session.selection.model
-      || (state.provider === 'custom' && state.customBaseUrl !== session.selection.customBaseUrl))) {
-        session.pending?.abort();
-        project.rehearsal = { messages: [{ kind: 'coach-message', text: '模型已更换，请重新开始演练。' }] };
-      }
+  function voiceAnswer() { return (voiceText + (voiceText && partialText ? '，' : '') + partialText).slice(0,4000).trim(); }
+  function showVoice() {
+    const answer = voiceAnswer();
+    if (!answer) { if (voiceTurn) { voiceTurn.answer = ''; voiceTurn.body.textContent = '正在听…'; } return; }
+    if (!voiceTurn) {
+      const node = document.createElement('div'); node.className = 'user-message voice-message';
+      const body = document.createElement('span'), meta = document.createElement('small'), button = document.createElement('button');
+      button.className = 'text-button'; button.hidden = true; node.append(body, meta, button); el('conversation').append(node);
+      voiceTurn = { node, body, meta, button, context, answer: '', state: 'live' };
     }
-    renderRehearsal();
+    voiceTurn.answer = answer; voiceTurn.body.textContent = answer; voiceTurn.meta.textContent = '正在听 · 停顿约1秒后教练自动回复';
+    el('conversation').scrollTop = el('conversation').scrollHeight; controls();
   }
-
-  async function requestTurn(project, session, answer = '') {
-    const controller = new AbortController();
-    const turns = answer ? [...session.turns, { question: session.question, answer }].slice(-4) : [];
-    session.pending = controller;
-    session.status = answer ? '正在分析回答…' : '正在生成首问…';
-    session.error = '';
-    renderRehearsal();
-    try {
-      const selection = session.selection || await window.ModelSettings.selection();
-      if (controller.signal.aborted) return;
-      if (!selection.model || (selection.provider === 'ollama' && selection.model === 'rules')) {
-        throw new Error('请在模型设置中选择支持文本对话的模型。');
-      }
-      session.selection = selection;
-      const response = await fetch('/api/rehearsal', {
-        method: 'POST', headers: { 'content-type': 'application/json' }, signal: controller.signal,
-        body: JSON.stringify({ ...selection, ...session.context, project: project.name, turns })
-      });
-      const result = await response.json();
-      if (project.rehearsal !== session) return;
-      if (!response.ok) throw new Error(result.error || '演练请求失败');
-      if (answer) {
-        session.messages.push({ kind: 'user-message', text: answer });
-        session.answer = '';
-        session.feedback = result.feedback;
-      } else {
-        session.messages = [];
-      }
-      session.turns = turns;
-      session.question = result.question;
-      session.messages.push({ kind: 'coach-message', text: result.question, label: answer ? '追问' : '首问' });
-      session.status = '演练中';
-    } catch (error) {
-      if (project.rehearsal !== session) return;
-      session.error = error.message;
-      session.status = session.question ? '等待重试' : '启动失败';
-    } finally {
-      session.pending = null;
-      if (project === activeProject && project.rehearsal === session) {
-        renderRehearsal();
-        if (session.question && $('#page-rehearsal').classList.contains('active')) input.focus();
-      }
-    }
-  }
-
-  start.onclick = () => {
-    const project = activeProject;
-    if (project.rehearsal?.pending) return;
-    const session = {
-      question: '', answer: '', turns: [], selection: null, pending: null,
-      messages: [{ kind: 'coach-message', text: '正在根据当前项目准备首问…' }],
-      context: {
-        audience: audience.value,
-        duration: duration.value,
-        focus: focus.value,
-        requirements: project.requirements.filter(item => item.status === '已确认').slice(0, 8).map(item => item.detail.slice(0, 160)),
-        documents: project.docs.filter(item => item.text?.trim()).slice(0, 3).map(item => ({ name: item.name, text: item.text.slice(0, 450) }))
-      }
+  function markVoice(turn, label, retry = false) {
+    if (!turn) return;
+    if (turn.asrPending) { turn.state = 'unverified'; turn.meta.textContent = '语音核准未完成，请重新说这段发言'; turn.button.hidden = true; return; }
+    turn.state = retry ? 'pending' : 'sent'; turn.meta.textContent = label; turn.button.hidden = !retry;
+    turn.button.textContent = '让教练回复这段话';
+    turn.button.onclick = () => {
+      if (!active || paused || phase === 'sending' || closingUtterance || context !== turn.context) return status('请先继续当前演练，再重试这段发言。', true);
+      send(turn);
     };
-    project.rehearsal = session;
-    return requestTurn(project, session);
-  };
-
-  send.onclick = () => {
-    const project = activeProject;
-    const session = project.rehearsal;
-    const answer = input.value.trim();
-    if (session?.question && !session.pending && answer) return requestTurn(project, session, answer);
-  };
-  input.addEventListener('input', () => {
-    if (activeProject.rehearsal) activeProject.rehearsal.answer = input.value;
-    updateControls();
-  });
-  input.addEventListener('keydown', event => {
-    if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
-      event.preventDefault();
-      send.click();
-    }
-  });
-  for (const element of [audience, duration, focus]) {
-    element.addEventListener('input', () => {
-      activeProject.rehearsalSetup = { audience: audience.selectedIndex, duration: duration.selectedIndex, focus: focus.value };
-    });
   }
-  $('#micButton').onclick = () => alert('语音演练是交互示意。请使用文字演练。');
-  window.addEventListener('project-changed', renderSetup);
-  window.addEventListener('model-settings-changed', updateModel);
-  updateModel();
+  const speech = new SpeechEngine({
+    text(text) { if (voiceTurn?.asrPending) voiceTurn.asrPending = false; voiceText = text; partialText = ''; lastSpeechAt = Date.now(); showVoice(); if (voiceAnswer().length >= 4000 && micOn) finishVoiceTurn(); },
+    partial(text) { if (text !== partialText && text) lastSpeechAt = Date.now(); partialText = text; showVoice(); },
+    level(value) { el('voiceLevel').value = value; if (micOn && !ttsActive && value > 0.12) lastSpeechAt = Date.now(); },
+    terms() { return [context?.project.name, context?.project.customer, '任务按时完成率，跨部门协作时长，统计口径，移动端审批，本地部署，数据安全，管理员操作手册，员工快速上手指南'].filter(Boolean).join('，').slice(0,240); },
+    refining() { if (voiceTurn) { voiceTurn.asrPending = true; voiceTurn.meta.textContent = '本机高精度识别正在核准这段发言…'; } },
+    limit() { if (micOn) finishVoiceTurn(); },
+    boundary() {
+      if (voiceTurn && !voiceTurn.answer) voiceTurn.node.remove();
+      if (voiceTurn?.answer) { voiceTurn.state = 'queued'; voiceTurn.meta.textContent = '发言已完成 · 等待教练回复'; voiceQueue.push(voiceTurn); }
+      voiceTurn = null; voiceText = partialText = ''; lastSpeechAt = Date.now();
+    },
+    error(error) { audioError(error); }
+  });
+  // Only the current bubble streams word by word. One complete utterance makes one model request.
+  setInterval(() => {
+    if (micOn && !ttsActive && !closingUtterance && voiceAnswer() && Date.now() - lastSpeechAt >= 1100) finishVoiceTurn();
+  }, 250);
+  function stopSpeech() { ttsActive = false; speech.setMuted(false); window.speechSynthesis?.cancel(); el('readQuestion').textContent = '朗读问题'; }
+  function interrupt(reason, end = false) {
+    resumeMic = !end && micOn; session++; if (inFlightTurn) markVoice(inFlightTurn, '回复已停止 · 发言已保留，可重试', true); inFlightTurn = null; micOn = false; captureToken++; closingUtterance = false; for (const queued of voiceQueue) markVoice(queued, '已暂停 · 发言已保留，尚未回复', true); voiceQueue = []; if (voiceTurn && voiceTurn.state !== 'sent') markVoice(voiceTurn, '已暂停 · 发言已保留，尚未完成回复', true); speech.cancel(); request?.abort(); request = null; stopSpeech(); phase = 'idle';
+    if (active) paused = true; if (end) { active = false; paused = false; }
+    status(reason); controls();
+  }
+  function audioError(error) {
+    micOn = false; captureToken++; closingUtterance = false; speech.cancel(); if (phase !== 'sending') phase = 'idle'; markVoice(voiceTurn, '未完成回复 · 发言已保留', true);
+    const messages = { NotAllowedError: '麦克风权限被拒绝。请在浏览器站点设置中允许麦克风，再重试；也可以输入文字。', NotFoundError: '未找到麦克风，请连接设备或输入文字。', NotReadableError: '麦克风被占用或不可用，请关闭其他录音程序后重试。' };
+    status(messages[error.name] || (error.name === 'EncodingError' ? '无法解码此音频，请改用 WAV 文件或输入文字' : error.message) || '无法识别此音频，请改用 WAV 文件或输入文字', true); controls();
+  }
+  function stopMicrophone() {
+    resumeMic = false; micOn = false; captureToken++; closingUtterance = false; speech.cancel(); stopSpeech();
+    if (voiceTurn?.answer) markVoice(voiceTurn, '录音已停止 · 发言已保留，尚未发送', true);
+    voiceTurn = null; voiceText = partialText = '';
+    if (phase !== 'sending') phase = 'idle';
+    status('麦克风已关闭。需要继续时可重新开启连续录音。'); controls();
+  }
+  async function record() {
+    if (micOn || phase === 'preparing') return stopMicrophone();
+    if (phase === 'transcribing' || phase === 'sending') return status('请等当前音频或回复完成后再开启录音。');
+    begin(); stopSpeech(); voiceTurn = null; voiceText = partialText = ''; lastSpeechAt = Date.now(); phase = 'preparing'; const id = session, token = ++captureToken; controls(); status('正在加载本地中文识别模型，随后请求麦克风权限…');
+    try { if (await speech.start() && id === session && token === captureToken) { micOn = true; phase = 'listening'; if (el('autoRead').checked) read(); status('麦克风持续开启 · 停顿约1秒后自动回复，回复后直接接着说。'); controls(); } }
+    catch (error) { if (id === session && token === captureToken) audioError(error); }
+  }
+  function pumpVoiceQueue() {
+    if (active && !paused && !request && !closingUtterance && phase !== 'sending' && voiceQueue.length) send(voiceQueue.shift());
+  }
+  async function finishVoiceTurn() {
+    if (!micOn || closingUtterance || ttsActive) return;
+    const id = session, token = captureToken; closingUtterance = true;
+    if (phase !== 'sending') phase = 'transcribing'; controls();
+    try {
+      await speech.finishUtterance();
+      if (id !== session || token !== captureToken) return;
+      closingUtterance = false; if (phase !== 'sending') phase = 'listening'; controls(); pumpVoiceQueue();
+    } catch (error) { if (id === session && token === captureToken) audioError(error); }
+  }
+  async function send(turn = null) {
+    const answer = turn ? turn.answer : input.value.trim();
+    if (!active || paused || ['preparing','transcribing','sending'].includes(phase) || !answer || (micOn && !turn)) return;
+    inFlightTurn = turn;
+    if (turn && voiceTurn === turn && !micOn) { voiceTurn = null; voiceText = partialText = ''; }
+    if (turn) { turn.state = 'sending'; turn.meta.textContent = '已发送 · 教练正在回复'; turn.button.hidden = true; }
+    const id = session; phase = 'sending'; request = new AbortController(); controls(); stopSpeech(); status(micOn ? '麦克风持续开启 · 教练正在回复，你可以继续补充。' : '教练正在回复…');
+    try {
+      const selected = await ModelSettings.selection(); if (id !== session) return;
+      el('coachModel').textContent = `${ModelSettings.providerLabel?.(selected.provider) || (selected.provider === 'ollama' ? '本地' : 'API')} · ${selected.model}`;
+      const response = await fetch('/api/rehearsal', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ ...context, ...selected, history, answer }), signal: request.signal });
+      const result = await response.json(); if (id !== session) return; if (!response.ok) throw new Error(result.error || '教练请求失败');
+      if (!result || typeof result.question !== 'string' || !result.question.trim() || typeof result.summary !== 'string' || !['strengths','improvements','evidence','warnings'].every(key => Array.isArray(result[key]))) throw new Error(result?.error || '教练反馈不完整，请重试');
+      if (turn) markVoice(turn, '已发送'); else message('user', answer); history.push({role:'user',content:answer}); question = `${result.summary}\n${result.question}`; message('assistant', question); history.push({role:'assistant',content:question}); if (!turn) input.value = ''; turns++;
+      const esc = escapeHtml;
+      el('feedback').innerHTML = `<small>第${turns}轮 · ${esc(result.model)}${result.elapsedMs ? ' · 回复用时' + (result.elapsedMs / 1000).toFixed(1) + '秒' : ''} · 已核对材料引用</small><p>${esc(result.summary)}</p><h3>本轮做得好的地方</h3><ul>${result.strengths.map(s=>`<li>${esc(s)}</li>`).join('') || '<li>本轮暂无具体优势建议。</li>'}</ul><h3>下一轮如何改进</h3><ul>${result.improvements.map(s=>`<li>${esc(s)}</li>`).join('') || '<li>继续用材料验证关键结论。</li>'}</ul>${result.evidence.map(e=>`<blockquote>${esc(e.quote)}<br><small>${esc(e.file)} · 第${e.lineStart}行</small></blockquote>`).join('')}${result.warnings.map(w=>`<p>${esc(w)}</p>`).join('')}`;
+      phase = micOn ? 'listening' : 'idle'; status(micOn ? '麦克风持续开启 · 可以直接回答下一问，无需点击录音。' : '本轮反馈已生成，可输入回答或开启连续录音。'); controls(); if (el('autoRead').checked && !voiceAnswer() && !voiceQueue.length) read();
+    } catch (error) { if (id === session && error.name !== 'AbortError') { phase = micOn ? 'listening' : 'idle'; if (turn) markVoice(turn, '回复失败 · 发言已保留，可重试', true); status(`${error.message}。回答已保留，可重试。`, true); controls(); } }
+    finally { if (id === session) { request = null; inFlightTurn = null; pumpVoiceQueue(); } }
+  }
+  const synth = window.speechSynthesis;
+  function localVoice() { return synth?.getVoices().find(v => v.localService && /^zh/i.test(v.lang)); }
+  function voices() { const supported = !!localVoice(); el('readQuestion').disabled = !supported || !question; el('autoRead').disabled = !supported; el('ttsStatus').textContent = supported ? (ttsActive ? '教练正在朗读，朗读结束后自动继续听。' : '自动朗读已就绪，麦克风保持开启，朗读结束后自动继续听。') : '当前浏览器没有本地中文语音，可直接阅读问题。'; }
+  function read() {
+    if (ttsActive) return stopSpeech();
+    const voice = localVoice(); if (!voice || !question || ['preparing','transcribing','sending'].includes(phase) || voiceAnswer() || voiceQueue.length) return;
+    const utterance = new SpeechSynthesisUtterance(question); utterance.voice = voice; utterance.lang = voice.lang;
+    ttsActive = true; speech.setMuted(true);
+    el('ttsStatus').dataset.playback = 'queued';
+    utterance.onstart = () => { el('ttsStatus').dataset.playback = 'speaking'; voices(); controls(); };
+    const complete = () => { el('ttsStatus').dataset.playback = 'ended'; ttsActive = false; speech.setMuted(false); lastSpeechAt = Date.now(); el('readQuestion').textContent = '朗读问题'; voices(); controls(); };
+    utterance.onend = complete; utterance.onerror = event => { complete(); el('ttsStatus').dataset.playback = 'error'; if (!['canceled','interrupted'].includes(event.error)) status('浏览器未能朗读，请检查系统声音或允许此页面播放声音；麦克风仍保持开启。', true); }; synth.speak(utterance); el('readQuestion').textContent = '停止朗读'; voices(); controls();
+  }
+  el('micButton').onclick = record; el('finishVoiceTurn').onclick = finishVoiceTurn;
+  el('startRehearsal').onclick = () => { begin(); status('文字演练已开始，输入汇报内容后发送。'); voices(); input.focus(); };
+  el('pauseRehearsal').onclick = () => { if (paused) { paused = false; lastTick = Date.now(); if (resumeMic) { resumeMic = false; record(); } else { status('演练已继续，可开始录音或输入。'); controls(); } } else interrupt('演练已暂停，麦克风和模型请求已停止。'); };
+  el('endRehearsal').onclick = () => interrupt(`演练结束，共完成${turns}轮。已保留对话、反馈与未发送文字。`, true);
+  el('sendAnswer').onclick = () => send(); input.oninput = controls;
+  input.addEventListener('keydown', event => { if (!event.isComposing && event.key === 'Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); send(); } });
+  el('autoRead').onchange = () => { if (!el('autoRead').checked) stopSpeech(); };
+  el('readQuestion').onclick = read; if (synth) synth.addEventListener('voiceschanged', voices); voices();
+  setInterval(() => { if (active && !paused) { const elapsed = Math.floor((Date.now() - lastTick)/1000); remaining = Math.max(0,remaining-elapsed); lastTick += elapsed*1000; if (!remaining && !timeNotified) { timeNotified = true; status(micOn ? '练习时间已到，麦克风仍开启。可继续演练或主动停止录音。' : '练习时间已到，可继续回答或结束演练。'); } controls(); voices(); } },1000);
+  new MutationObserver(() => { if (!page.classList.contains('active') && active && !paused) interrupt('已离开演练页，练习自动暂停；返回后可继续。'); }).observe(page, {attributes:true,attributeFilter:['class']});
+  window.addEventListener('project-changed', () => {
+    const nextId = typeof activeProject === 'undefined' ? 'default' : activeProject.id;
+    if (nextId === projectId) return;
+    interrupt('已切换项目，当前演练已暂停。');
+    projectSessions.set(projectId, { nodes: [...el('conversation').childNodes], feedback: el('feedback').innerHTML,
+      answer: input.value, audience: el('audience').value, duration: el('duration').value, focus: el('rehearsalFocus').value,
+      active, remaining, history, turns, question, context, model: el('coachModel').textContent });
+    projectId = nextId; const saved = projectSessions.get(projectId);
+    active = saved?.active || false; paused = active; remaining = saved?.remaining ?? 300;
+    history = saved?.history || []; turns = saved?.turns || 0; question = saved?.question || ''; context = saved?.context;
+    voiceTurn = null; voiceText = partialText = ''; resumeMic = false; timeNotified = false;
+    input.value = saved?.answer || ''; el('audience').value = saved?.audience || '客户项目负责人'; el('duration').value = saved?.duration || '5'; el('rehearsalFocus').value = saved?.focus || '';
+    if (saved) el('conversation').replaceChildren(...saved.nodes); else el('conversation').innerHTML = initialConversation;
+    el('feedback').innerHTML = saved?.feedback || initialFeedback; el('coachModel').textContent = saved?.model || '使用模型设置中的语言模型';
+    status(active ? '已恢复此项目的演练。点击继续演练后再回答。' : '选择演练方式开始当前项目的练习。'); controls();
+  });
+  window.addEventListener('pagehide', () => interrupt('演练已停止。',true)); controls();
 })();

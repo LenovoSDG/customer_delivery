@@ -27,7 +27,7 @@
     const remote = config.provider !== 'ollama';
     const source = providerLabel(config.provider);
     el('privacyNotice').textContent = remote ? `质检与演练 · ${source}` : '本地质检与演练 · 使用本机 Ollama';
-    el('processingNotice').textContent = remote ? `质检和文字演练内容发送至 ${destinationLabel(config.provider)}` : '质检与文字演练在本机处理 · 外部聊天平台连接当前为演示状态';
+    el('processingNotice').textContent = remote ? `质检和演练文字发送至 ${destinationLabel(config.provider)} · 音频仅本机处理` : '质检与演练在本机处理 · 外部聊天平台连接当前为演示状态';
     el('reviewProviderBadge').textContent = `调用${source}`;
     if (!document.querySelector('#report .report-meta') && el('qualityModel').textContent !== '检查中') el('qualityModel').textContent = remote ? source : '本地模型';
     window.dispatchEvent(new Event('model-settings-changed'));

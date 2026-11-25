@@ -146,11 +146,15 @@ function createModelGateway({ configFile, env = process.env, fetchImpl = global.
     return { models, apiBaseUrl: BASE_URL };
   }
 
-  async function chatCompletion(api, key, model, system, content, schema, signal) {
+  async function chatCompletion(api, key, model, system, content, schema, signal, interactive = false) {
     const body = { model, stream: false,
       messages: [{ role: 'system', content: system }, { role: 'user', content: content + '\n仅输出JSON，遵循此schema：' + JSON.stringify(schema) }],
       response_format: { type: 'json_object' }
     };
+    if (interactive) {
+      body.max_tokens = 1200;
+      if (/^glm-(?:4\.[567](?:-|$)|5(?:\.[12])?(?:-|$))/i.test(model)) body.thinking = { type: 'disabled' };
+    }
     if (api.provider === 'deepseek') {
       body.thinking = { type: 'disabled' };
       body.max_tokens = 1200;
@@ -186,7 +190,7 @@ function createModelGateway({ configFile, env = process.env, fetchImpl = global.
     return { provider, name: definition.name, model: settings[definition.modelField], baseUrl, error };
   }
 
-  function createChat(provider, model, { signal, expectedBaseUrl } = {}) {
+  function createChat(provider, model, { signal, expectedBaseUrl, interactive = false } = {}) {
     const api = apiConfig(provider);
     if (!api) throw new Error('未知的模型来源');
     if (api.error) throw new Error(api.error);
@@ -196,11 +200,11 @@ function createModelGateway({ configFile, env = process.env, fetchImpl = global.
     const keyValue = settings[API_PROVIDERS[provider].keyField];
     const key = keyValue ? validateKey(keyValue, api.name) : '';
     const selected = validateModel(model || api.model);
-    return (system, content, schema) => chatCompletion(api, key, selected, system, content, schema, signal);
+    return (system, content, schema) => chatCompletion(api, key, selected, system, content, schema, signal, interactive);
   }
 
-  async function ask(model, system, content, schema, { provider = 'bohrium', signal } = {}) {
-    return createChat(provider, model, { signal })(system, content, schema);
+  async function ask(model, system, content, schema, { provider = 'bohrium', signal, interactive = false } = {}) {
+    return createChat(provider, model, { signal, interactive })(system, content, schema);
   }
 
   return { publicConfig, saveConfig, listModels, ask, apiConfig, createChat };
