@@ -48,3 +48,8 @@
 @media(max-width:600px) { #page-rehearsal .answer-box { flex-direction:column; align-items:stretch; } #page-rehearsal .page-heading { flex-wrap:wrap; gap:12px; } #page-rehearsal .coach-head { flex-wrap:wrap; } }
 #page-rehearsal .local-pill { font-size:12px; color:#38624d; }
 #page-rehearsal .coach-avatar { font-size:14px; }
+
+#page-rehearsal .voice-message > span { display:block; }
+#page-rehearsal .voice-message small { display:block; font-size:12px; color:#47636a; margin-top:6px; }
+#page-rehearsal .voice-message button { display:block; margin-top:4px; }
+#page-rehearsal .voice-message button[hidden] { display:none; }

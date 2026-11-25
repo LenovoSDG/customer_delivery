@@ -58,15 +58,15 @@
             <label>练习时长<select id="duration"><option value="5">5 分钟</option><option value="10">10 分钟</option><option value="15">15 分钟</option></select></label>
             <label>本次重点<textarea id="rehearsalFocus" maxlength="1000" placeholder="例如：数据口径、上线安排与安全保障。"></textarea></label>
             <div class="rehearsal-actions"><button class="primary" id="micButton">开始语音演练</button><button class="secondary" id="startRehearsal">开始文字演练</button></div>
-            <div class="voice-panel"><p id="voiceStatus" role="status" aria-live="polite">点击开始后请求麦克风权限，首次加载中文模型约42 MB。</p><meter id="voiceLevel" min="0" max="1" value="0" aria-label="麦克风输入音量"></meter><p id="voicePartial" aria-live="off"></p><button class="text-button" id="importAudio">导入音频转写</button><input type="file" id="audioFile" accept="audio/*,.wav,.mp3,.m4a,.ogg,.webm" hidden><span class="audio-hint">5分钟以内 · 最大20 MB</span></div>
-            <p class="privacy-note">音频仅在浏览器处理，不上传、不保存。转写可修改，点击发送后，文字和项目材料交给当前所选模型。</p>
+            <div class="voice-panel"><p id="voiceStatus" role="status" aria-live="polite">点击开始后请求麦克风权限，首次加载中文模型约42 MB。</p><meter id="voiceLevel" min="0" max="1" value="0" aria-label="音频输入音量"></meter><p id="voicePartial" aria-live="off"></p><button class="text-button" id="importAudio">导入语音演练</button><input type="file" id="audioFile" accept="audio/*,.wav,.mp3,.m4a,.ogg,.webm" hidden><span class="audio-hint">5分钟以内 · 最大20 MB</span></div>
+            <p class="privacy-note">音频仅在浏览器处理，不上传、不保存。发言实时进入对话；停顿约2秒或点击“说完了”，识别内容和项目材料自动交给所选模型。</p>
           </section>
           <section class="surface coach-surface">
             <div class="coach-head"><div class="coach-avatar">AI</div><div><b>汇报教练</b><small id="coachModel">使用模型设置中的语言模型</small></div><span class="coach-live" role="status">待开始</span></div>
             <div class="session-toolbar"><span id="rehearsalClock">05:00</span><button class="text-button" id="pauseRehearsal" disabled>暂停</button><button class="text-button" id="endRehearsal" disabled>结束演练</button><button class="text-button" id="readQuestion" disabled>朗读问题</button><label class="read-option"><input type="checkbox" id="autoRead">自动朗读</label></div>
             <p id="ttsStatus" class="tts-note">仅使用浏览器提供的本地中文语音。</p>
             <div class="conversation" id="conversation" role="log" aria-label="演练对话" aria-live="polite"><div class="coach-message">开始后，请先介绍项目进展、交付依据与下一步计划。我会根据你的回答给出反馈，并追问一个具体问题。</div></div>
-            <div class="answer-box"><label for="answerInput">回答或语音转写 · 确认后发送<textarea id="answerInput" maxlength="4000" placeholder="转写会出现在这里，可修改后发送。也可以直接输入。"></textarea></label><button class="primary" id="sendAnswer" disabled>发送给教练</button></div>
+            <div class="answer-box"><label for="answerInput">文字回答（可选）<textarea id="answerInput" maxlength="4000" placeholder="也可以在这里输入文字回答。语音发言直接显示在上方对话中。"></textarea></label><button class="primary" id="sendAnswer" disabled>发送给教练</button></div>
             <p class="answer-help">Enter换行，Ctrl / ⌘ + Enter发送 · <span id="answerCount">0</span>/4000字</p>
           </section>
         </div>
@@ -94,7 +94,7 @@
         <div class="settings-actions"><button class="secondary" id="refreshApiModels" type="button">读取模型列表</button></div>
         <label for="apiModelName">API 模型</label><input id="apiModelName" list="apiModelOptions" placeholder="输入名称搜索，或填写完整模型 ID" autocomplete="off"><datalist id="apiModelOptions"></datalist>
         <p class="model-help" id="apiModelsStatus" role="status">配置密钥后读取可见模型，也可直接填写模型 ID。请选择支持文本聊天的模型。</p>
-        <p class="model-disclosure">运行 API 质检或汇报教练时，需求、规范、材料和确认后的回答文字将发送至玻尔网关；音频不会上传。密钥仅保存在本机后端，不回填浏览器。</p>
+        <p class="model-disclosure">运行 API 质检或汇报教练时，需求、规范、材料和回答文字（语音发言会自动发送）将发送至玻尔网关；音频不会上传。密钥仅保存在本机后端，不回填浏览器。</p>
       </section>
       <div id="modelSettingsStatus" class="settings-status" role="status" aria-live="polite"></div>
       <div class="dialog-actions"><button class="secondary" id="cancelModelSettings" type="button">取消</button><button class="primary" value="save" id="saveSettings">保存设置</button></div>

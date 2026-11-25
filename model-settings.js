@@ -13,8 +13,8 @@
     state.apiModel = config.apiModel || '';
     if (config.localModel) state.model = config.localModel;
     const remote = config.provider === 'bohrium';
-    el('privacyNotice').textContent = remote ? 'API 模型 · 确认文字发送至玻尔网关' : '本地模型 · 使用本机 Ollama';
-    el('processingNotice').textContent = remote ? 'API 质检与教练会发送需求、材料和确认后的回答至玻尔网关 · 录音不上传' : '质检、转写与教练在本机处理 · 外部聊天平台连接为演示';
+    el('privacyNotice').textContent = remote ? 'API 模型 · 文字内容发送至玻尔网关' : '本地模型 · 使用本机 Ollama';
+    el('processingNotice').textContent = remote ? 'API 质检与教练会发送需求、材料和发言文字至玻尔网关 · 录音不上传' : '质检、转写与教练在本机处理 · 外部聊天平台连接为演示';
     el('reviewProviderBadge').textContent = remote ? '调用玻尔 API' : '调用本机 Ollama';
     if (!document.querySelector('#report .report-meta') && el('qualityModel').textContent !== '检查中') el('qualityModel').textContent = remote ? '玻尔 API' : '本地模型';
   }
