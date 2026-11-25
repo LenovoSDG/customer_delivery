@@ -43,7 +43,7 @@ async function main() {
     fs.renameSync(output + '.tmp', output);
     fs.writeFileSync(path.join(root, 'manifest.json'), JSON.stringify({ name: 'Vosk 中文 small-cn-0.22', source: URL,
       license: 'Apache-2.0', sha256: sha(fs.readFileSync(output)), bytes: fs.statSync(output).size }, null, 2) + '\n');
-    console.log('中文离线识别模型已准备好。音频在浏览器内识别，不上传到模型网关。');
+    console.log('浏览器离线预览模型已准备好。高精度识别可继续运行 npm run setup:voice-hq；音频不发送到模型网关。');
   } finally {
     fs.rmSync(staging, { recursive: true, force: true });
     if (!archiveArgument && fs.existsSync(archive)) fs.unlinkSync(archive);

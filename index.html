@@ -50,7 +50,7 @@
       <section class="page" id="page-materials"><div class="page-heading"><div><div class="eyebrow">项目交付</div><h1>交付材料</h1><p>上传销售或产品准备的文档、图片和视频，并关联对应清单项。</p></div><button class="primary" id="docPick">＋ 上传材料</button><input hidden type="file" id="docInput" multiple accept=".txt,.md,.csv,.png,.jpg,.jpeg,.webp,.mp4,.webm,.pdf,.docx,.xlsx"></div><div class="surface material-toolbar"><div class="filter-pills"><button class="filter-pill active">全部材料 <span id="materialCount">0</span></button><button class="filter-pill">待检查</button><button class="filter-pill">已检查</button></div><span class="supported">文档 · 图片 · 视频　|　文本质检支持 TXT / MD / CSV / DOCX / PDF / Excel（XLSX）</span></div><div id="materialsList" class="material-grid"><div class="empty-state wide"><div class="empty-symbol">▤</div><b>还没有上传交付材料</b><span>上传文件后，为材料关联清单项并运行质量检查。</span><button class="secondary" id="emptyUpload">选择项目文件</button></div></div><div class="flow-actions"><span>材料上传完成后，运行项目级质量检查。</span><button class="primary" data-next="quality">下一步：质量检查 →</button></div></section>
       <section class="page" id="page-quality"><div class="page-heading"><div><h1>质量检查</h1><p>对照确认后的客户需求、交付清单和项目规范检查材料。</p></div><button class="primary" id="runReview">运行项目检查 →</button></div><div class="quality-summary"><div><b id="qualityReqs">0</b><span>确认需求</span></div><div><b id="qualityDocs">0</b><span>项目材料</span></div><div><b id="qualityIssues">待运行</b><span>待补充检查点</span></div><div><b id="qualityModel">本地模型</b><span>检查方式</span></div></div><section class="surface report-surface"><div class="surface-heading"><div><h2>检查结果</h2><p>每条问题显示关联需求、材料证据和修改建议。</p></div><span class="local-pill" id="reviewProviderBadge">调用本机 Ollama</span></div><div id="report" class="empty-state"><div class="empty-symbol">✓</div><b>准备好材料后运行检查</b><span>逐条展示核验结论、材料原文和待确认项。</span></div></section><div class="flow-actions"><span>检查完成后，进入汇报演练准备讲解和答疑。</span><button class="primary" data-next="rehearsal">下一步：汇报演练 →</button></div></section>
       <section class="page" id="page-rehearsal">
-        <div class="page-heading"><div><h1>模拟汇报与问答</h1><p>先讲清结论，再用项目证据回应追问。</p></div><span class="local-pill">中文离线转写 · 所选模型反馈</span></div>
+        <div class="page-heading"><div><h1>模拟汇报与问答</h1><p>先讲清结论，再用项目证据回应追问。</p></div><span class="local-pill">本机语音识别 · 自动朗读反馈</span></div>
         <div class="rehearsal-grid">
           <section class="surface rehearsal-setup">
             <div class="surface-heading"><div><h2>演练设置</h2><p>选择听众和重点，围绕当前项目练习。</p></div></div>
@@ -58,12 +58,12 @@
             <label>练习时长<select id="duration"><option value="5">5 分钟</option><option value="10">10 分钟</option><option value="15">15 分钟</option></select></label>
             <label>本次重点<textarea id="rehearsalFocus" maxlength="1000" placeholder="例如：数据口径、上线安排与安全保障。"></textarea></label>
             <div class="rehearsal-actions"><button class="primary" id="micButton">开始语音演练</button><button class="secondary" id="finishVoiceTurn" disabled>说完了，立即回复</button><button class="secondary" id="startRehearsal">开始文字演练</button></div>
-            <div class="voice-panel"><p id="voiceStatus" role="status" aria-live="polite">点击开始后请求麦克风权限，首次加载中文模型约42 MB。</p><meter id="voiceLevel" min="0" max="1" value="0" aria-label="音频输入音量"></meter><p id="voicePartial" aria-live="off"></p><button class="text-button" id="importAudio">导入语音演练</button><input type="file" id="audioFile" accept="audio/*,.wav,.mp3,.m4a,.ogg,.webm" hidden><span class="audio-hint">5分钟以内 · 最大20 MB</span></div>
-            <p class="privacy-note">音频仅在浏览器处理，不上传、不保存。发言实时进入对话；麦克风持续开启，停顿约1秒或点击“说完了”后自动回复；随后直接接着说。点击“停止录音”才关闭麦克风。</p>
+            <div class="voice-panel"><p id="voiceStatus" role="status" aria-live="polite">点击开始后请求麦克风权限，首次加载中文模型约42 MB。</p><meter id="voiceLevel" min="0" max="1" value="0" aria-label="音频输入音量"></meter><p id="voicePartial" aria-live="off"></p><button class="text-button" id="importAudio">导入语音演练</button><input type="file" id="audioFile" accept="audio/*,.wav,.mp3,.m4a,.ogg,.webm" hidden><span class="audio-hint">高精度音频2分钟以内 · 最大20 MB</span></div>
+            <p id="speechEngineStatus" class="privacy-note">正在检测本机语音识别服务…</p><p class="privacy-note">音频在本机浏览器与本机识别服务中处理，不发送到外部网关、不保存。发言实时进入对话；麦克风持续开启，停顿约1秒或点击“说完了”后自动回复；随后直接接着说。点击“停止录音”才关闭麦克风。</p>
           </section>
           <section class="surface coach-surface">
             <div class="coach-head"><div class="coach-avatar">AI</div><div><b>汇报教练</b><small id="coachModel">使用模型设置中的语言模型</small></div><span class="coach-live" role="status">待开始</span></div>
-            <div class="session-toolbar"><span id="rehearsalClock">05:00</span><button class="text-button" id="pauseRehearsal" disabled>暂停</button><button class="text-button" id="endRehearsal" disabled>结束演练</button><button class="text-button" id="readQuestion" disabled>朗读问题</button><label class="read-option"><input type="checkbox" id="autoRead">自动朗读</label></div>
+            <div class="session-toolbar"><span id="rehearsalClock">05:00</span><button class="text-button" id="pauseRehearsal" disabled>暂停</button><button class="text-button" id="endRehearsal" disabled>结束演练</button><button class="text-button" id="readQuestion" disabled>朗读问题</button><label class="read-option"><input type="checkbox" id="autoRead" checked>自动朗读</label></div>
             <p id="ttsStatus" class="tts-note">仅使用浏览器提供的本地中文语音。</p>
             <div class="conversation" id="conversation" role="log" aria-label="演练对话" aria-live="polite"><div class="coach-message">开始后，请先介绍项目进展、交付依据与下一步计划。我会根据你的回答给出反馈，并追问一个具体问题。</div></div>
             <div class="answer-box"><label for="answerInput">文字回答（可选）<textarea id="answerInput" maxlength="4000" placeholder="也可以在这里输入文字回答。语音发言直接显示在上方对话中。"></textarea></label><button class="primary" id="sendAnswer" disabled>发送给教练</button></div>
@@ -94,7 +94,7 @@
         <div class="settings-actions"><button class="secondary" id="refreshApiModels" type="button">读取模型列表</button></div>
         <label for="apiModelName">API 模型</label><input id="apiModelName" list="apiModelOptions" placeholder="输入名称搜索，或填写完整模型 ID" autocomplete="off"><datalist id="apiModelOptions"></datalist>
         <p class="model-help" id="apiModelsStatus" role="status">配置密钥后读取可见模型，也可直接填写模型 ID。请选择支持文本聊天的模型。</p>
-        <p class="model-disclosure">运行 API 质检或汇报教练时，需求、规范、材料和回答文字（语音发言会自动发送）将发送至玻尔网关；音频不会上传。密钥仅保存在本机后端，不回填浏览器。</p>
+        <p class="model-disclosure">运行 API 质检或汇报教练时，需求、规范、材料和回答文字（语音发言会自动发送）将发送至玻尔网关；音频仅送本机识别服务，不发送至玻尔网关。密钥仅保存在本机后端，不回填浏览器。</p>
       </section>
       <div id="modelSettingsStatus" class="settings-status" role="status" aria-live="polite"></div>
       <div class="dialog-actions"><button class="secondary" id="cancelModelSettings" type="button">取消</button><button class="primary" value="save" id="saveSettings">保存设置</button></div>

@@ -15,7 +15,7 @@
     for (const id of ['audience','duration','rehearsalFocus']) el(id).disabled = active;
     el('pauseRehearsal').disabled = !active; el('endRehearsal').disabled = !active;
     el('pauseRehearsal').textContent = paused ? '继续演练' : '暂停';
-    document.querySelector('#page-rehearsal .coach-live').textContent = !active ? turns ? '已结束' : '待开始' : paused ? '已暂停' : phase === 'sending' ? '教练思考中' : '演练中';
+    document.querySelector('#page-rehearsal .coach-live').textContent = !active ? turns ? '已结束' : '待开始' : paused ? '已暂停' : ttsActive ? '教练正在说话' : phase === 'sending' ? '教练思考中' : '演练中';
     el('answerCount').textContent = input.value.length;
     el('rehearsalClock').textContent = `${String(Math.floor(remaining / 60)).padStart(2,'0')}:${String(remaining % 60).padStart(2,'0')}`;
   }
@@ -43,6 +43,7 @@
   }
   function markVoice(turn, label, retry = false) {
     if (!turn) return;
+    if (turn.asrPending) { turn.state = 'unverified'; turn.meta.textContent = '语音核准未完成，请重新说这段发言'; turn.button.hidden = true; return; }
     turn.state = retry ? 'pending' : 'sent'; turn.meta.textContent = label; turn.button.hidden = !retry;
     turn.button.textContent = '让教练回复这段话';
     turn.button.onclick = () => {
@@ -51,10 +52,14 @@
     };
   }
   const speech = new SpeechEngine({
-    text(text) { voiceText = text; partialText = ''; lastSpeechAt = Date.now(); showVoice(); if (voiceAnswer().length >= 4000 && micOn) finishVoiceTurn(); },
+    text(text) { if (voiceTurn?.asrPending) voiceTurn.asrPending = false; voiceText = text; partialText = ''; lastSpeechAt = Date.now(); showVoice(); if (voiceAnswer().length >= 4000 && micOn) finishVoiceTurn(); },
     partial(text) { if (text !== partialText && text) lastSpeechAt = Date.now(); partialText = text; showVoice(); },
     level(value) { el('voiceLevel').value = value; if (micOn && !ttsActive && value > 0.12) lastSpeechAt = Date.now(); },
+    terms() { return [context?.project.name, context?.project.customer, '任务按时完成率，跨部门协作时长，统计口径，移动端审批，本地部署，数据安全，管理员操作手册，员工快速上手指南'].filter(Boolean).join('，').slice(0,240); },
+    refining() { if (voiceTurn) { voiceTurn.asrPending = true; voiceTurn.meta.textContent = '本机高精度识别正在核准这段发言…'; } },
+    limit() { if (micOn) finishVoiceTurn(); },
     boundary() {
+      if (voiceTurn && !voiceTurn.answer) voiceTurn.node.remove();
       if (voiceTurn?.answer) { voiceTurn.state = 'queued'; voiceTurn.meta.textContent = '发言已完成 · 等待教练回复'; voiceQueue.push(voiceTurn); }
       voiceTurn = null; voiceText = partialText = ''; lastSpeechAt = Date.now();
     },
@@ -86,7 +91,7 @@
     if (micOn || phase === 'preparing') return stopMicrophone();
     if (phase === 'transcribing' || phase === 'sending') return status('请等当前音频或回复完成后再开启录音。');
     begin(); stopSpeech(); voiceTurn = null; voiceText = partialText = ''; lastSpeechAt = Date.now(); phase = 'preparing'; const id = session, token = ++captureToken; controls(); status('正在加载本地中文识别模型，随后请求麦克风权限…');
-    try { if (await speech.start() && id === session && token === captureToken) { micOn = true; phase = 'listening'; status('麦克风持续开启 · 停顿约1秒后自动回复，回复后直接接着说。'); controls(); } }
+    try { if (await speech.start() && id === session && token === captureToken) { micOn = true; phase = 'listening'; if (el('autoRead').checked) read(); status('麦克风持续开启 · 停顿约1秒后自动回复，回复后直接接着说。'); controls(); } }
     catch (error) { if (id === session && token === captureToken) audioError(error); }
   }
   function pumpVoiceQueue() {
@@ -106,6 +111,7 @@
     const answer = turn ? turn.answer : input.value.trim();
     if (!active || paused || ['preparing','transcribing','sending'].includes(phase) || !answer || (micOn && !turn)) return;
     inFlightTurn = turn;
+    if (turn && voiceTurn === turn && !micOn) { voiceTurn = null; voiceText = partialText = ''; }
     if (turn) { turn.state = 'sending'; turn.meta.textContent = '已发送 · 教练正在回复'; turn.button.hidden = true; }
     const id = session; phase = 'sending'; request = new AbortController(); controls(); stopSpeech(); status(micOn ? '麦克风持续开启 · 教练正在回复，你可以继续补充。' : '教练正在回复…');
     try {
@@ -114,7 +120,7 @@
       const response = await fetch('/api/rehearsal', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ ...context, ...selected, history, answer }), signal: request.signal });
       const result = await response.json(); if (id !== session) return; if (!response.ok) throw new Error(result.error || '教练请求失败');
       if (!result || typeof result.question !== 'string' || !result.question.trim() || typeof result.summary !== 'string' || !['strengths','improvements','evidence','warnings'].every(key => Array.isArray(result[key]))) throw new Error(result?.error || '教练反馈不完整，请重试');
-      if (turn) markVoice(turn, '已发送'); else message('user', answer); history.push({role:'user',content:answer}); question = result.question; message('assistant', question); history.push({role:'assistant',content:question}); if (!turn) input.value = ''; turns++;
+      if (turn) markVoice(turn, '已发送'); else message('user', answer); history.push({role:'user',content:answer}); question = `${result.summary}\n${result.question}`; message('assistant', question); history.push({role:'assistant',content:question}); if (!turn) input.value = ''; turns++;
       const esc = escapeHtml;
       el('feedback').innerHTML = `<small>第${turns}轮 · ${esc(result.model)}${result.elapsedMs ? ' · 回复用时' + (result.elapsedMs / 1000).toFixed(1) + '秒' : ''} · 已核对材料引用</small><p>${esc(result.summary)}</p><h3>本轮做得好的地方</h3><ul>${result.strengths.map(s=>`<li>${esc(s)}</li>`).join('') || '<li>本轮暂无具体优势建议。</li>'}</ul><h3>下一轮如何改进</h3><ul>${result.improvements.map(s=>`<li>${esc(s)}</li>`).join('') || '<li>继续用材料验证关键结论。</li>'}</ul>${result.evidence.map(e=>`<blockquote>${esc(e.quote)}<br><small>${esc(e.file)} · 第${e.lineStart}行</small></blockquote>`).join('')}${result.warnings.map(w=>`<p>${esc(w)}</p>`).join('')}`;
       phase = micOn ? 'listening' : 'idle'; status(micOn ? '麦克风持续开启 · 可以直接回答下一问，无需点击录音。' : '本轮反馈已生成，可输入回答或开启连续录音。'); controls(); if (el('autoRead').checked && !voiceAnswer() && !voiceQueue.length) read();
@@ -123,13 +129,16 @@
   }
   const synth = window.speechSynthesis;
   function localVoice() { return synth?.getVoices().find(v => v.localService && /^zh/i.test(v.lang)); }
-  function voices() { const supported = !!localVoice(); el('readQuestion').disabled = !supported || !question; el('autoRead').disabled = !supported; el('ttsStatus').textContent = supported ? '本地朗读时麦克风保持开启，朗读结束后自动继续听。' : '当前浏览器没有本地中文语音，可直接阅读问题。'; }
+  function voices() { const supported = !!localVoice(); el('readQuestion').disabled = !supported || !question; el('autoRead').disabled = !supported; el('ttsStatus').textContent = supported ? (ttsActive ? '教练正在朗读，朗读结束后自动继续听。' : '自动朗读已就绪，麦克风保持开启，朗读结束后自动继续听。') : '当前浏览器没有本地中文语音，可直接阅读问题。'; }
   function read() {
-    if (synth?.speaking) return stopSpeech();
+    if (ttsActive) return stopSpeech();
     const voice = localVoice(); if (!voice || !question || ['preparing','transcribing','sending'].includes(phase) || voiceAnswer() || voiceQueue.length) return;
     const utterance = new SpeechSynthesisUtterance(question); utterance.voice = voice; utterance.lang = voice.lang;
     ttsActive = true; speech.setMuted(true);
-    utterance.onend = utterance.onerror = () => { ttsActive = false; speech.setMuted(false); lastSpeechAt = Date.now(); el('readQuestion').textContent = '朗读问题'; }; synth.speak(utterance); el('readQuestion').textContent = '停止朗读';
+    el('ttsStatus').dataset.playback = 'queued';
+    utterance.onstart = () => { el('ttsStatus').dataset.playback = 'speaking'; voices(); controls(); };
+    const complete = () => { el('ttsStatus').dataset.playback = 'ended'; ttsActive = false; speech.setMuted(false); lastSpeechAt = Date.now(); el('readQuestion').textContent = '朗读问题'; voices(); controls(); };
+    utterance.onend = complete; utterance.onerror = event => { complete(); el('ttsStatus').dataset.playback = 'error'; if (!['canceled','interrupted'].includes(event.error)) status('浏览器未能朗读，请检查系统声音或允许此页面播放声音；麦克风仍保持开启。', true); }; synth.speak(utterance); el('readQuestion').textContent = '停止朗读'; voices(); controls();
   }
   el('micButton').onclick = record; el('finishVoiceTurn').onclick = finishVoiceTurn;
   el('startRehearsal').onclick = () => { begin(); status('文字演练已开始，输入汇报内容后发送。'); voices(); input.focus(); };
@@ -144,6 +153,10 @@
     try { await speech.importFile(file); if (id !== session) return; phase = 'idle'; controls(); if (voiceTurn?.answer) await send(voiceTurn); else status('没有识别到讲话，请换一段音频重试。'); }
     catch (error) { if (id === session) audioError(error); }
   };
+  el('autoRead').onchange = () => { if (!el('autoRead').checked) stopSpeech(); };
+  fetch('/api/voice/status').then(response => response.json()).then(value => {
+    el('speechEngineStatus').textContent = value.refiner?.available ? '本机 Whisper 高精度识别 · 实时预览在停顿后自动核准，核准后才交给教练。' : '当前使用浏览器快速识别；高精度本机识别尚未安装。';
+  }).catch(() => { el('speechEngineStatus').textContent = '无法检测语音识别服务，请重试。'; });
   el('readQuestion').onclick = read; if (synth) synth.addEventListener('voiceschanged', voices); voices();
   setInterval(() => { if (active && !paused) { const elapsed = Math.floor((Date.now() - lastTick)/1000); remaining = Math.max(0,remaining-elapsed); lastTick += elapsed*1000; if (!remaining && !timeNotified) { timeNotified = true; status(micOn ? '练习时间已到，麦克风仍开启。可继续演练或主动停止录音。' : '练习时间已到，可继续回答或结束演练。'); } controls(); voices(); } },1000);
   new MutationObserver(() => { if (!page.classList.contains('active') && active && !paused) interrupt('已离开演练页，练习自动暂停；返回后可继续。'); }).observe(page, {attributes:true,attributeFilter:['class']});

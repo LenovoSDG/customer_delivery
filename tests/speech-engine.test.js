@@ -1,11 +1,11 @@
 const test=require('node:test'); const assert=require('node:assert/strict'); const fs=require('node:fs'); const vm=require('node:vm');
-function harness() {
+function harness({refine=false,refineFetch} = {}) {
   let resolveMedia, stopped=0, removed=0, handlers={}, mediaCalls=0, contexts=0, closed=0; const instances=[];
   class Recognizer {constructor(){this.handlers={};handlers=this.handlers;instances.push(this);} on(event,fn){this.handlers[event]=fn;} remove(){removed++;} acceptWaveformFloat(){queueMicrotask(()=>this.handlers.partialresult({result:{partial:'正在说'}}));} retrieveFinalResult(){queueMicrotask(()=>this.handlers.result({result:{text:'最后 一句话'}}));}}
   class Model {constructor(){this.KaldiRecognizer=Recognizer;}on(event,fn){if(event==='load')queueMicrotask(()=>fn({result:true}));}}
   class Context {constructor(){contexts++;this.sampleRate=16000;}async resume(){} createMediaStreamSource(){return {connect(){},disconnect(){}};}createScriptProcessor(){return {connect(){},disconnect(){}};}async close(){closed++;}}
   const root={Vosk:{Model},AudioContext:Context};
-  const scope={window:root,fetch:async()=>({json:async()=>({ready:true,sha256:'test'})}),URL,location:{href:'http://127.0.0.1:4174/'},navigator:{mediaDevices:{getUserMedia:()=>{mediaCalls++;return new Promise(resolve=>{resolveMedia=resolve;});}}},setTimeout,clearTimeout,Float32Array};
+  const scope={window:root,fetch:async(url,options)=>url==='/api/voice/refine' ? refineFetch(options) : ({json:async()=>({ready:true,sha256:'test',refiner:{available:refine}})}),URL,location:{href:'http://127.0.0.1:4174/'},navigator:{mediaDevices:{getUserMedia:()=>{mediaCalls++;return new Promise(resolve=>{resolveMedia=resolve;});}}},setTimeout,clearTimeout,Float32Array,AbortController,btoa};
   vm.runInNewContext(fs.readFileSync(require.resolve('../speech-engine'),'utf8'),scope);
   return {Engine:root.SpeechEngine,get handlers(){return handlers;},instances,get mediaCalls(){return mediaCalls;},get contexts(){return contexts;},get closed(){return closed;},resolveMedia:()=>resolveMedia({getTracks:()=>[{stop(){stopped++;}}],getAudioTracks:()=>[{addEventListener(){}}]}),get stopped(){return stopped;},get removed(){return removed;}};
 }
@@ -36,4 +36,14 @@ test('recognizer rotation buffers audio arriving during finalization instead of 
 
 test('playback echo suppression gates recognition without disabling or stopping audio tracks',async()=>{
  const h=harness();const engine=new h.Engine();await engine.prepare();engine.setMuted(true);engine.feed(new Float32Array(10),16000);assert.equal(engine.pending,0);assert.equal(h.stopped,0);engine.setMuted(false);engine.feed(new Float32Array(10),16000);assert.equal(engine.pending,1);await new Promise(setImmediate);engine.cancel();
+});
+
+test('utterance submission uses local Whisper text rather than the rough browser transcript',async()=>{
+ let sent,final='';const h=harness({refine:true,refineFetch:async options=>{sent=JSON.parse(options.body);return {ok:true,json:async()=>({text:'管理员操作手册。'})};}});const engine=new h.Engine({boundary:text=>final=text,terms:()=> '管理员操作手册'});await engine.prepare();engine.feed(new Float32Array([.1,-.1,.2,-.2]),16000);await engine.finishUtterance();assert.equal(final,'管理员操作手册。');assert.equal(sent.sampleRate,16000);assert.equal(sent.terms,'管理员操作手册');assert.equal(Buffer.from(sent.pcm,'base64').readInt16LE(0),3277);engine.cancel();
+});
+test('canceling local refinement ignores a late result and never submits an old utterance',async()=>{
+ let resolve,submitted=0;const h=harness({refine:true,refineFetch:()=>new Promise(r=>resolve=r)});const engine=new h.Engine({boundary:()=>submitted++});await engine.prepare();engine.feed(new Float32Array([.1,.2]),16000);const pending=engine.finishUtterance();await new Promise(setImmediate);await new Promise(r=>setTimeout(r,35));engine.cancel();resolve({ok:true,json:async()=>({text:'过期识别'})});await pending;assert.equal(submitted,0);
+});
+test('local refinement failure cannot silently submit the inaccurate browser preview',async()=>{
+ let submitted=0;const h=harness({refine:true,refineFetch:async()=>({ok:false,json:async()=>({error:'核准失败'})})});const engine=new h.Engine({boundary:()=>submitted++});await engine.prepare();engine.feed(new Float32Array([.1,.2]),16000);await assert.rejects(engine.finishUtterance(),/核准失败/);assert.equal(submitted,0);engine.cancel();
 });

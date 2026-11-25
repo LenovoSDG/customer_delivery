@@ -1,14 +1,15 @@
 const test=require('node:test'); const assert=require('node:assert/strict'); const fs=require('node:fs'); const {JSDOM}=require('jsdom');
-function harness() {
+function harness({autoRead=false} = {}) {
  const dom=new JSDOM(fs.readFileSync(require.resolve('../index.html'),'utf8'),{runScripts:'outside-only',url:'http://127.0.0.1:4174/'}), w=dom.window;
  w.document.getElementById('page-rehearsal').classList.add('active');
+ w.document.getElementById('autoRead').checked=autoRead;
  w.addEventListener('error',event=>{throw event.error;});
  let cancelCount=0, calls=0, resolveFetch, callbacks, now=10000, starts=0, finishes=0, muted=false, spoken; const timers=[], bodies=[];
  w.Date.now=()=>now; w.setInterval=fn=>{timers.push(fn);return timers.length;};
  w.structuredClone=structuredClone; w.SpeechEngine=class{constructor(cb){callbacks=cb;} setMuted(value){muted=value;} async start(){starts++;return true;} async finishUtterance(){finishes++;callbacks.text('我们需要补充管理员操作手册');callbacks.partial('');callbacks.boundary();} async stop(){callbacks.text('我们需要补充管理员操作手册');callbacks.partial('');} cancel(){cancelCount++;}};
  w.speechSynthesis={getVoices:()=>[{lang:'zh-CN',localService:true}],addEventListener(){},cancel(){},speak(utterance){spoken=utterance;}};w.SpeechSynthesisUtterance=class{constructor(text){this.text=text;}};
  w.ModelSettings={selection:async()=>({provider:'bohrium',model:'test-model'})};
- w.fetch=async(url,options)=>{calls++;bodies.push(JSON.parse(options.body)); return new Promise(resolve=>{resolveFetch=resolve;});};
+ w.fetch=async(url,options)=>{if(url==='/api/voice/status')return {json:async()=>({refiner:{available:true}})};calls++;bodies.push(JSON.parse(options.body)); return new Promise(resolve=>{resolveFetch=resolve;});};
  w.state={project:{name:'演示'},requirements:[],docs:[]}; w.escapeHtml=s=>String(s).replaceAll('<','&lt;');
  w.eval(fs.readFileSync(require.resolve('../rehearsal-ui'),'utf8'));
  const el=id=>w.document.getElementById(id);
@@ -63,5 +64,13 @@ test('resuming a paused voice rehearsal reopens listening without an additional 
 });
 
 test('local question playback keeps the microphone open and resumes recognition automatically',async()=>{
- const h=harness();try{h.el('autoRead').checked=true;h.el('micButton').click();await flush();h.speech.partial('第一轮');h.advance(1200);await flush();h.resolve(reply);await flush();assert.equal(h.spoken.text,'何时交付？');assert.equal(h.muted,true);assert.equal(h.cancels,0);assert.equal(h.el('micButton').textContent,'停止录音');h.spoken.onend();assert.equal(h.muted,false);assert.equal(h.cancels,0);assert.equal(h.starts,1);}finally{h.close();}
+ const h=harness({autoRead:true});try{h.el('autoRead').checked=true;h.el('micButton').click();await flush();h.spoken.onend();h.speech.partial('第一轮');h.advance(1200);await flush();h.resolve(reply);await flush();assert.equal(h.spoken.text,reply.summary+'\n'+reply.question);assert.equal(h.muted,true);assert.equal(h.cancels,0);assert.equal(h.el('micButton').textContent,'停止录音');h.spoken.onend();assert.equal(h.muted,false);assert.equal(h.cancels,0);assert.equal(h.starts,1);}finally{h.close();}
+});
+
+test('default voice conversation reads the opening and every complete reply across two hands-free turns',async()=>{
+ const html=fs.readFileSync(require.resolve('../index.html'),'utf8');assert.match(html,/id="autoRead" checked/);
+ const h=harness({autoRead:true});try{h.el('micButton').click();await flush();assert.match(h.spoken.text,/请面向/);assert.equal(h.muted,true);h.spoken.onend();h.speech.partial('第一轮');h.advance(1200);await flush();h.resolve(reply);await flush();assert.equal(h.spoken.text,reply.summary+'\n'+reply.question);assert.equal(h.muted,true);h.spoken.onend();h.speech.partial('第二轮');h.advance(1200);await flush();assert.equal(h.calls,2);h.resolve(reply);await flush();assert.equal(h.muted,true);assert.equal(h.starts,1);assert.equal(h.cancels,0);}finally{h.close();}
+});
+test('failed high-quality recognition keeps its preview visibly unverified and cannot retry it as a final answer',async()=>{
+ const h=harness();try{h.el('micButton').click();await flush();h.speech.partial('错误的预览');h.speech.refining();h.speech.error(new Error('核准失败'));const bubble=h.el('conversation').querySelector('.voice-message');assert.match(bubble.textContent,/语音核准未完成/);assert.equal(bubble.querySelector('button').hidden,true);assert.equal(h.calls,0);}finally{h.close();}
 });

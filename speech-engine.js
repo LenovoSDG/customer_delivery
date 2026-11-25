@@ -1,10 +1,11 @@
-/* Browser-only PCM recognition. No audio is sent to the application server. */
+/* PCM stays on this machine: browser preview plus optional loopback Whisper recognition. */
 (function (root) {
   const clean = text => String(text || '').replace(/([\u3400-\u9fff])\s+(?=[\u3400-\u9fff])/g, '$1').trim();
-  let modelPromise;
+  let modelPromise, refinementAvailable = false;
   async function loadModel() {
     if (!modelPromise) modelPromise = (async () => {
       const status = await (await fetch('/api/voice/status')).json();
+      refinementAvailable = Boolean(status.refiner?.available);
       if (!status.ready) throw new Error('中文识别模型未安装，请在项目目录运行 npm run setup:voice');
       if (!root.Vosk) await new Promise((resolve, reject) => {
         const script = document.createElement('script'); script.src = '/vendor/vosk.js';
@@ -20,7 +21,7 @@
     return modelPromise;
   }
   class SpeechEngine {
-    constructor(callbacks = {}) { this.callbacks = callbacks; this.generation = 0; this.pending = 0; this.text = ''; this.holding = false; this.held = []; this.heldSamples = 0; this.muted = false; }
+    constructor(callbacks = {}) { this.callbacks = callbacks; this.generation = 0; this.pending = 0; this.text = ''; this.holding = false; this.held = []; this.heldSamples = 0; this.muted = false; this.audio = []; this.audioSamples = 0; this.audioRate = 16000; this.limitNotified = false; }
     async prepare() {
       const generation = ++this.generation;
       const model = await loadModel();
@@ -28,7 +29,7 @@
       this.model = model; this.createRecognizer(generation); return generation;
     }
     createRecognizer(generation) {
-      const recognizer = this.recognizer = new this.model.KaldiRecognizer(16000); this.pending = 0; this.text = '';
+      const recognizer = this.recognizer = new this.model.KaldiRecognizer(16000); this.pending = 0; this.text = ''; this.audio = []; this.audioSamples = 0; this.limitNotified = false;
       this.recognizer.on('result', message => {
         if (generation !== this.generation || recognizer !== this.recognizer) return;
         this.pending = Math.max(0, this.pending - 1);
@@ -54,12 +55,14 @@
         if (this.heldSamples > rate * 30) { this.callbacks.error?.(new Error('语音收尾超时，已停止录音，请重试')); return; }
         this.held.push({ data, rate }); return;
       }
+      if (refinementAvailable) { this.audio.push(data.slice()); this.audioSamples += data.length; this.audioRate = rate; }
       this.pending++; this.recognizer.acceptWaveformFloat(data, rate);
+      if (refinementAvailable && this.audioSamples >= rate * 25 && !this.limitNotified) { this.limitNotified = true; this.callbacks.limit?.(); }
     }
     async start() {
       const generation = await this.prepare();
       if (!navigator.mediaDevices?.getUserMedia) throw new Error('当前浏览器无法录音，请使用 Chrome、Edge 或导入音频');
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true }, video: false });
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true }, video: false });
       if (generation !== this.generation) { stream.getTracks().forEach(track => track.stop()); return false; }
       this.stream = stream;
       stream.getAudioTracks().forEach(track => track.addEventListener('ended', () => { if (generation === this.generation) this.callbacks.error?.(new Error('麦克风已断开，已保留识别文字，请重新连接后重试')); }));
@@ -94,12 +97,33 @@
         this.finalResolve = () => { clearTimeout(timer); resolve(); }; this.recognizer.retrieveFinalResult();
       });
     }
+    async refine(generation) {
+      if (!refinementAvailable) return this.text;
+      const view = new DataView(new ArrayBuffer(this.audioSamples * 2)); let offset = 0;
+      for (const chunk of this.audio) for (const sample of chunk) view.setInt16(offset++ * 2, Math.round(Math.max(-1, Math.min(1, sample)) * 32767), true);
+      const bytes = new Uint8Array(view.buffer); let binary = '';
+      for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+      if (!bytes.length) return '';
+      this.callbacks.refining?.(); const controller = this.refineController = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 45000);
+      try {
+        const response = await fetch('/api/voice/refine', { method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ pcm: btoa(binary), sampleRate: this.audioRate, terms: this.callbacks.terms?.() || '' }), signal: controller.signal });
+        const result = await response.json();
+        if (generation !== this.generation) return;
+        if (!response.ok) throw new Error(result.error || '本机高精度语音识别失败，请重试');
+        this.text = clean(result.text); this.callbacks.text?.(this.text); this.callbacks.partial?.('');
+        return this.text;
+      } finally { clearTimeout(timer); if (this.refineController === controller) this.refineController = null; }
+    }
     async finishUtterance() {
       // Rotate only the recognizer. Keep the same MediaStream, AudioContext and capture node.
       const generation = this.generation;
       this.holding = true; this.held = []; this.heldSamples = 0;
       try {
         await this.drain(generation);
+        if (generation !== this.generation) return;
+        await this.refine(generation);
         if (generation !== this.generation) return;
         const answer = this.text;
         this.callbacks.boundary?.(answer);
@@ -118,6 +142,7 @@
         });
         this.source?.disconnect(); this.node?.disconnect();
         await this.drain(generation);
+        if (generation === this.generation) await this.refine(generation);
       } finally { if (generation === this.generation) this.cancel(); }
     }
     async importFile(file) {
@@ -126,7 +151,7 @@
       const context = new (root.AudioContext || root.webkitAudioContext)({ sampleRate: 16000 }); this.context = context;
       try {
         const buffer = await context.decodeAudioData(await file.arrayBuffer());
-        if (buffer.duration > 300) throw new Error('请导入5分钟以内的音频');
+        if (buffer.duration > (refinementAvailable ? 120 : 300)) throw new Error(refinementAvailable ? '高精度识别请导入2分钟以内的音频' : '请导入5分钟以内的音频');
         const mono = new Float32Array(buffer.length);
         for (let c = 0; c < buffer.numberOfChannels; c++) { const channel = buffer.getChannelData(c); for (let i = 0; i < mono.length; i++) mono[i] += channel[i] / buffer.numberOfChannels; }
         for (let i = 0; i < mono.length && generation === this.generation; i += 8192) {
@@ -138,10 +163,11 @@
           }
         }
         await this.drain(generation);
+        if (generation === this.generation) await this.refine(generation);
       } finally { if (generation === this.generation) this.cancel(); }
     }
     cancel() {
-      this.generation++; this.holding = false; this.held = []; this.heldSamples = 0; this.muted = false; this.stream?.getTracks().forEach(track => track.stop()); this.stream = null;
+      this.generation++; this.refineController?.abort(); this.refineController = null; this.audio = []; this.audioSamples = 0; this.holding = false; this.held = []; this.heldSamples = 0; this.muted = false; this.stream?.getTracks().forEach(track => track.stop()); this.stream = null;
       this.source?.disconnect(); this.node?.disconnect(); this.source = this.node = null;
       this.context?.close().catch(() => {}); this.context = null;
       this.recognizer?.remove(); this.recognizer = null; this.finalResolve?.(); this.finalResolve = null; this.callbacks.level?.(0);

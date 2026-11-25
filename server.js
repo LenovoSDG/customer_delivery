@@ -7,11 +7,15 @@ const ExcelJS = require('exceljs');
 const { PDFParse } = require('pdf-parse');
 const { reviewProject } = require('./review');
 const { coachTurn } = require('./rehearsal');
+const { createASRService } = require('./asr-service');
 const { createModelGateway } = require('./model-gateway');
 
 const PORT = Number(process.env.PORT || 4174);
 const ROOT = __dirname;
 const gateway = createModelGateway({ configFile: path.join(ROOT, '.env.local') });
+const asr = createASRService(ROOT);
+if (asr.status().available) asr.start().catch(() => {});
+process.once('exit', () => asr.close());
 const MAX_BODY = 12 * 1024 * 1024;
 const CAPTURE_DIR = path.join(ROOT, 'captures');
 const capture = { active: false, timer: null, busy: false, hwnd: '', title: '', group: '', model: '', intervalSec: 15, startedAt: '', lastCheck: '', lastError: '', saved: 0, events: [], nextEventId: 1, lastSignature: '' };
@@ -195,8 +199,16 @@ const server = http.createServer(async (req, res) => {
   }
   const url = new URL(req.url, `http://127.0.0.1:${PORT}`);
   if (url.pathname === '/api/voice/status' && req.method === 'GET') {
-    try { const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'voice-models/manifest.json'))); return json(res, 200, { ...manifest, ready: fs.existsSync(path.join(ROOT, 'voice-models/chinese.tar.gz')) }); }
+    try { const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'voice-models/manifest.json'))); return json(res, 200, { ...manifest, ready: fs.existsSync(path.join(ROOT, 'voice-models/chinese.tar.gz')), refiner: asr.status() }); }
     catch { return json(res, 200, { ready: false }); }
+  }
+  if (url.pathname === '/api/voice/refine' && req.method === 'POST') {
+    const controller = new AbortController();
+    const cancel = () => { if (!res.writableEnded) controller.abort(); }; res.once('close', cancel);
+    try { const input = await readBody(req); const result = await asr.transcribe(input, { signal: controller.signal }); if (!res.destroyed) json(res, 200, result); }
+    catch (error) { if (!res.destroyed) json(res, 400, { error: error.message }); }
+    finally { res.off('close', cancel); }
+    return;
   }
   if (url.pathname === '/voice-model/chinese.tar.gz' && req.method === 'GET') {
     const archive = path.join(ROOT, 'voice-models/chinese.tar.gz');
@@ -384,5 +396,7 @@ function ruleReview(requirements, documents, rules) {
   if (!documents.length) checks.unshift({ title: '尚未导入交付材料', status: '无法检查', evidence: '请添加 TXT、MD 或 CSV 文件', suggestion: '选择项目交付物后重新检查。', source: '系统提示' });
   return checks;
 }
+
+for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => { asr.close(); server.close(() => process.exit(0)); setTimeout(() => process.exit(0), 1000).unref(); });
 
 server.listen(PORT, '127.0.0.1', () => console.log(`本地交付核验 Demo 已启动：http://127.0.0.1:${PORT}`));

@@ -6,7 +6,8 @@
   "scripts": {
     "test": "node --test tests/*.test.js",
     "start": "node server.js",
-    "setup:voice": "node scripts/setup-voice.js"
+    "setup:voice": "node scripts/setup-voice.js",
+    "setup:voice-hq": "node scripts/setup-voice-hq.js"
   },
   "keywords": [],
   "author": "",
