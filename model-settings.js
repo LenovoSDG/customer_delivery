@@ -1,6 +1,7 @@
 (function () {
   'use strict';
   const el = id => document.getElementById(id);
+  const form = el('modelSettingsForm');
   let saved = null;
   let configError = '';
   state.provider = 'ollama';
@@ -54,25 +55,33 @@
     el('modelSettingsStatus').textContent = '';
   }
 
+  function clearKeyInputs() {
+    form.querySelectorAll('input[type="password"]').forEach(input => { input.value = ''; });
+  }
+
+  function showKeyStatus() {
+    el('apiKeyStatus').textContent = saved?.keyConfigured
+      ? '密钥已保存。留空继续使用，填写新密钥即可更换。'
+      : '尚未配置密钥。可填写密钥并读取模型列表。';
+    el('deepseekKeyStatus').textContent = saved?.deepseekKeyConfigured
+      ? '密钥已保存。留空继续使用，填写新密钥即可更换。'
+      : '请填写 DeepSeek API 密钥。';
+    el('customKeyStatus').textContent = saved?.customKeyConfigured
+      ? '当前地址的密钥已保存。留空继续使用，更换地址时请按新服务的要求填写密钥。'
+      : '尚未保存密钥。服务要求 Bearer 密钥时填写。';
+  }
+
   async function openSettings() {
     await ready;
     if (configError) await readConfig();
     el('modelProvider').value = state.provider;
     el('modelName').value = state.model;
     el('apiModelName').value = saved?.apiModel || '';
-    el('apiKey').value = '';
     el('deepseekModelName').value = saved?.deepseekModel || 'deepseek-flash';
-    el('deepseekKey').value = '';
-    el('deepseekKeyStatus').textContent = saved?.deepseekKeyConfigured
-      ? '已配置密钥，留空继续使用。'
-      : '请填写 DeepSeek API 密钥。';
     el('customBaseUrl').value = saved?.customBaseUrl || '';
     el('customModelName').value = saved?.customModel || '';
-    el('customKey').value = '';
-    el('customKeyStatus').textContent = saved?.customKeyConfigured
-      ? '当前地址的密钥已保存。更换地址时，按新服务的要求填写密钥。'
-      : '服务要求 Bearer 密钥时填写。';
-    el('apiKeyStatus').textContent = saved?.keyConfigured ? '已保存密钥；留空则继续使用，仅更换时填写。' : '尚未配置密钥。输入后可读取模型列表，再保存。';
+    clearKeyInputs();
+    showKeyStatus();
     toggleProvider();
     if (configError) el('modelSettingsStatus').textContent = configError;
     el('settingsDialog').showModal();
@@ -106,8 +115,9 @@
     event.preventDefault();
     const provider = el('modelProvider').value;
     const button = el('saveSettings');
+    const status = el('modelSettingsStatus');
     button.disabled = true;
-    el('modelSettingsStatus').textContent = '正在保存…';
+    status.textContent = '正在保存…';
     try {
       const payload = { provider, localModel: el('modelName').value.trim() || state.model,
         apiModel: el('apiModelName').value.trim() };
@@ -119,14 +129,23 @@
       if (provider === 'custom') {
         payload.customBaseUrl = el('customBaseUrl').value.trim();
         payload.customModel = el('customModelName').value.trim();
+        if (!payload.customBaseUrl || !payload.customModel) {
+          throw new Error('请填写 API 基础地址和模型 ID。');
+        }
         if (el('customKey').value.trim()) payload.customKey = el('customKey').value.trim();
       }
       const response = await fetch('/api/model-config', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
       const config = await response.json();
       if (!response.ok) throw new Error(config.error || '保存失败');
       applyConfig(config);
-      el('settingsDialog').close();
-    } catch (error) { el('modelSettingsStatus').textContent = error.message; }
+      if (provider === 'custom') el('customBaseUrl').value = config.customBaseUrl;
+      clearKeyInputs();
+      showKeyStatus();
+      status.textContent = `设置已保存，质检和文字演练已切换至 ${providerLabel(config.provider)}。`;
+    } catch (error) {
+      const message = error instanceof TypeError ? '无法连接本机 Demo 服务，请确认服务打开后重试。' : error.message;
+      status.textContent = `保存失败：${message}`;
+    }
     finally { button.disabled = false; }
   }
 
@@ -134,12 +153,9 @@
   el('closeModelSettings').onclick = el('cancelModelSettings').onclick = () => el('settingsDialog').close();
   el('modelProvider').onchange = toggleProvider;
   el('refreshApiModels').onclick = refreshModels;
-  el('modelSettingsForm').addEventListener('submit', saveSettings);
-  el('settingsDialog').addEventListener('close', () => {
-    el('apiKey').value = '';
-    el('deepseekKey').value = '';
-    el('customKey').value = '';
-  });
+  form.addEventListener('submit', saveSettings);
+  form.addEventListener('input', () => { el('modelSettingsStatus').textContent = ''; });
+  el('settingsDialog').addEventListener('close', clearKeyInputs);
   el('checkConnection').onclick = async () => {
     el('connectionStatus').textContent = '检测中…';
     try {

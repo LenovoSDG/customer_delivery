@@ -18,6 +18,10 @@ async function setup() {
     if (url === '/api/api-models') return new Response(JSON.stringify({ models: ['vendor/model-a', 'vendor/model-b'] }));
     if (url === '/api/model-config' && options.method === 'POST') {
       const payload = JSON.parse(options.body);
+      if (payload.provider === 'custom') {
+        return Response.json({ ...saved, provider: 'custom', customBaseUrl: payload.customBaseUrl,
+          customModel: payload.customModel, customKeyConfigured: Boolean(payload.customKey) });
+      }
       return new Response(JSON.stringify({ ...saved, provider: payload.provider, apiModel: payload.apiModel, keyConfigured: true }));
     }
     throw new Error('Unexpected request');
@@ -62,4 +66,29 @@ test('cancel discards the draft key and missing key does not trigger a network r
   el('cancelModelSettings').click();
   assert.equal(el('apiKey').value, '');
   assert.equal(el('settingsDialog').open, false);
+});
+
+test('custom API explains missing details and confirms a successful key save without echoing it', async () => {
+  const { win, calls, el } = await setup();
+  el('modelProvider').value = 'custom';
+  el('modelProvider').dispatchEvent(new win.Event('change'));
+  el('customKey').value = 'test-only-custom-key';
+  const submit = () => el('modelSettingsForm').dispatchEvent(new win.SubmitEvent('submit', {
+    cancelable: true, submitter: el('saveSettings')
+  }));
+
+  submit();
+  assert.match(el('modelSettingsStatus').textContent, /保存失败.*API 基础地址和模型 ID/);
+  assert.equal(el('customKey').value, 'test-only-custom-key');
+  assert.equal(calls.filter(call => call.options.method === 'POST').length, 0);
+
+  el('customBaseUrl').value = 'https://api.example/v1';
+  el('customModelName').value = 'test-model';
+  submit();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(el('settingsDialog').open, true);
+  assert.equal(el('customKey').value, '');
+  assert.match(el('customKeyStatus').textContent, /密钥已保存/);
+  assert.match(el('modelSettingsStatus').textContent, /设置已保存.*自定义 API/);
+  assert.equal((await win.ModelSettings.selection()).model, 'test-model');
 });

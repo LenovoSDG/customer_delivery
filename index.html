@@ -1,45 +1,208 @@
 <!doctype html>
 <html lang="zh-CN">
 <head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#192d4e"><title>项目交付助手</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0E398E">
+  <title>智汇 · 本地 AI 企业交付助手</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="stylesheet" href="/report.css">
   <link rel="stylesheet" href="/model-settings.css">
 </head>
 <body>
   <header class="topbar">
-    <div class="brand"><span class="brand-mark">项</span><span>项目交付助手</span></div>
-    <div class="top-actions"><span id="globalCaptureBadge" class="capture-badge hidden"><i></i>微信监测中</span><span class="privacy" id="privacyNotice">可切换本地 / API 质检模型</span><button class="top-button" id="modelSettings">模型设置</button><span class="avatar">李</span></div>
+    <div class="brand">
+      <div class="brand-skew" aria-hidden="true"></div>
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 6h10M4 12h7M4 18h10"/>
+          <path d="M15 11l2.5 2.5L21 9"/>
+        </svg>
+      </span>
+      <div class="brand-text">
+        <strong>智汇</strong>
+        <span>本地 AI 项目交付助手</span>
+      </div>
+    </div>
+    <div class="top-actions">
+      <span id="globalCaptureBadge" class="capture-badge hidden"><i></i>窗口监测中</span>
+      <span class="privacy-pill" id="privacyNotice"><i class="dot" aria-hidden="true"></i>本地质检与演练 · 本机 Ollama</span>
+      <button class="top-button" id="kbQuickBtn" type="button" title="查看本地个人复盘知识库">
+        <span>个人复盘库</span>
+        <b id="kbTopCount">0</b>
+      </button>
+      <button class="top-button accent" id="modelSettings" type="button">模型设置</button>
+      <span class="avatar" title="当前工作区成员">智</span>
+    </div>
   </header>
+
   <div class="app-layout">
-    <aside class="sidebar">
-      <div class="workspace-label">项目工作区</div>
-      <button class="side-link" data-page="projects"><span>▦</span>项目列表</button>
-      <div class="sidebar-project"><i></i><span id="sideProjectName">凌云办公协同升级</span></div>
-      <button class="side-link sub active" data-page="project"><span>○</span>项目概览</button>
-      <button class="side-link sub" data-page="requirements"><span>○</span>需求与清单</button>
-      <button class="side-link sub" data-page="materials"><span>○</span>交付材料</button>
-      <button class="side-link sub" data-page="quality"><span>○</span>质量检查</button>
-      <button class="side-link sub" data-page="rehearsal"><span>○</span>汇报演练</button>
-      <div class="sidebar-bottom">本地项目空间<br><small>v0.2 Demo</small></div>
+    <aside class="sidebar" aria-label="主导航">
+      <div class="sidebar-group">
+        <div class="workspace-label">交付工作台</div>
+        <button class="side-link" data-page="projects" type="button">
+          <span class="nav-num">00</span>
+          <span class="nav-label">项目总览</span>
+        </button>
+      </div>
+
+      <div class="sidebar-project-card">
+        <div class="sidebar-project-eyebrow">当前工作项目</div>
+        <div class="sidebar-project">
+          <i></i>
+          <span id="sideProjectName">凌云办公协同升级</span>
+        </div>
+        <select id="sideProjectSwitcher" class="side-project-select" aria-label="快速切换当前项目"></select>
+      </div>
+
+      <nav class="sidebar-steps" aria-label="项目交付闭环">
+        <button class="side-link sub active" data-page="project" type="button">
+          <span class="step-num c1">01</span>
+          <span class="nav-label">采集客户需求</span>
+          <em class="nav-badge" id="navBadgeChats">0</em>
+        </button>
+        <button class="side-link sub" data-page="requirements" type="button">
+          <span class="step-num c2">02</span>
+          <span class="nav-label">确认交付清单</span>
+          <em class="nav-badge" id="navBadgeReqs">0/0</em>
+        </button>
+        <button class="side-link sub" data-page="materials" type="button">
+          <span class="step-num c3">03</span>
+          <span class="nav-label">检查交付材料</span>
+          <em class="nav-badge" id="navBadgeDocs">0</em>
+        </button>
+        <button class="side-link sub" data-page="quality" type="button">
+          <span class="step-num c4">04</span>
+          <span class="nav-label">质检与证据</span>
+          <em class="nav-badge" id="navBadgeQuality">—</em>
+        </button>
+        <button class="side-link sub" data-page="rehearsal" type="button">
+          <span class="step-num c5">05</span>
+          <span class="nav-label">演练与复盘</span>
+          <em class="nav-badge" id="navBadgeRehearsal">待练</em>
+        </button>
+      </nav>
+
+      <div class="sidebar-bottom">
+        <div class="sidebar-trust">
+          <span class="trust-dot"></span>
+          <span>原文留痕 · 证据可溯</span>
+        </div>
+        <small>智汇本地工作台 · v0.3</small>
+      </div>
     </aside>
+
     <main class="main">
-      <div class="breadcrumb"><span>项目工作区</span><b>/</b><span id="breadcrumbCurrent">项目概览</span></div>
+      <div class="breadcrumb">
+        <span>智汇交付工作台</span>
+        <b>/</b>
+        <span id="breadcrumbCurrent">项目列表</span>
+      </div>
+
+      <!-- Persistent Architectural Project Header + Stepper (visible on pages 1-5) -->
+      <div id="projectContextBar" class="project-context-bar hidden">
+        <div class="project-hero-band">
+          <div class="project-hero-main">
+            <div class="eyebrow">项目工作区 <span>·</span> <em id="projectStatusInline">进行中</em></div>
+            <h1 id="projectTitle">凌云办公协同升级</h1>
+            <p id="projectMeta">客户：联想办公软件团队　·　负责人：李明　·　进行中</p>
+          </div>
+          <div class="project-header-actions">
+            <button class="btn-band-ghost" id="quickDemoBtn" type="button">载入演示样本</button>
+            <button class="btn-band-solid" id="editProject" type="button">项目设置</button>
+          </div>
+        </div>
+        <div class="stepper" role="tablist" aria-label="交付流程进度">
+          <button class="step active" data-page="project" type="button"><i>01</i><span>采集客户需求</span></button>
+          <b></b>
+          <button class="step" data-page="requirements" type="button"><i>02</i><span>确认交付清单</span></button>
+          <b></b>
+          <button class="step" data-page="materials" type="button"><i>03</i><span>上传交付材料</span></button>
+          <b></b>
+          <button class="step" data-page="quality" type="button"><i>04</i><span>质量检查</span></button>
+          <b></b>
+          <button class="step" data-page="rehearsal" type="button"><i>05</i><span>演练与复盘</span></button>
+        </div>
+      </div>
+
+      <!-- PAGE 0: PROJECTS -->
       <section class="page active" id="page-projects">
-        <div class="page-heading"><div><h1>项目列表</h1><p>打开项目，查看它的需求、材料和交付进度。</p></div><button class="primary" id="newProject">＋ 新增项目</button></div>
-        <div class="filter-row"><input id="projectSearch" placeholder="搜索项目或客户"><select id="projectFilter"><option value="">全部项目</option><option>进行中</option><option>待汇报</option></select><span class="result-count" id="projectResultCount"></span></div>
+        <div class="projects-editorial-hero">
+          <div class="hero-left-navy">
+            <div class="hero-kicker">智汇 · 企业级本地 AI 交付助手</div>
+            <h1>交付前核对客户要求<br>汇报时拿得出依据</h1>
+            <p>把客户原话、交付清单、检查规范和演练复盘保留在同一个本地工作区。</p>
+            <div class="hero-cta-row">
+              <button class="btn-hero-white" id="newProject" type="button">＋ 新增交付项目</button>
+              <button class="btn-hero-ghost" id="heroDemoBtn" type="button">体验演示项目 →</button>
+            </div>
+          </div>
+          <div class="hero-right-questions">
+            <div class="hero-q-title">交付与汇报前必核对的三个问题</div>
+            <div class="hero-q-item">
+              <span class="q-badge b1">01</span>
+              <div>
+                <strong>客户到底答应并提出了什么要求？</strong>
+                <p>聊天记录、会议纪要和截屏中的日期、格式与口径变更不遗漏。</p>
+              </div>
+            </div>
+            <div class="hero-q-item">
+              <span class="q-badge b2">02</span>
+              <div>
+                <strong>准备的材料有没有覆盖这些要求？</strong>
+                <p>对照确认后的交付清单、PRD 与汇报规范逐点核查缺项与矛盾。</p>
+              </div>
+            </div>
+            <div class="hero-q-item">
+              <span class="q-badge b3">03</span>
+              <div>
+                <strong>面对客户或领导追问能不能拿出依据？</strong>
+                <p>定位具体文件名与行号原文，沉淀个人演练复盘供随时调用。</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="filter-row">
+          <div class="search-wrap">
+            <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="M13 13l4 4"/></svg>
+            <input id="projectSearch" placeholder="按项目名称或客户团队检索…">
+          </div>
+          <select id="projectFilter" aria-label="按状态筛选项目">
+            <option value="">全部项目</option>
+            <option>进行中</option>
+            <option>待汇报</option>
+          </select>
+          <span class="result-count" id="projectResultCount"></span>
+        </div>
+
         <div class="project-grid" id="projectGrid"></div>
+
         <template id="projectCardTemplate">
           <article class="project-card" data-project-card>
-            <div class="card-top"><div class="project-avatar"></div><span class="project-status"></span></div>
-            <h2></h2><p></p>
-            <div class="card-progress"><div><span>需求确认</span><b data-req-progress></b></div><div class="progress-track"><i></i></div></div>
-            <div class="card-progress"><div><span>材料检查</span><b data-doc-progress></b></div><div class="progress-track blue"><i></i></div></div>
+            <div class="card-accent-strip"></div>
+            <div class="card-top">
+              <div class="project-avatar"></div>
+              <span class="project-status"></span>
+            </div>
+            <h2></h2>
+            <p></p>
+            <div class="card-metrics-strip" data-card-metrics>
+              <span>资料 <b>0</b> 条</span>
+              <span>清单 <b>0</b> 项</span>
+            </div>
+            <div class="card-progress">
+              <div><span>需求确认</span><b data-req-progress></b></div>
+              <div class="progress-track"><i></i></div>
+            </div>
+            <div class="card-progress">
+              <div><span>材料检查</span><b data-doc-progress></b></div>
+              <div class="progress-track blue"><i></i></div>
+            </div>
             <div class="card-footer">
               <span></span>
               <div class="project-card-actions">
-                <button class="link-button" type="button" data-open-project>打开项目 →</button>
+                <button class="link-button primary-link" type="button" data-open-project>进入项目 →</button>
                 <button class="link-button" type="button" data-rename-project>重命名</button>
                 <button class="link-button" type="button" data-edit-project>编辑</button>
               </div>
@@ -47,125 +210,782 @@
           </article>
         </template>
       </section>
+
+      <!-- PAGE 1: INTAKE / PROJECT OVERVIEW -->
       <section class="page" id="page-project">
-        <div class="project-title-row"><div><div class="eyebrow">客户项目 <span>/</span> 项目概览</div><h1 id="projectTitle">凌云办公协同升级</h1><p id="projectMeta">客户：联想办公软件团队　·　负责人：李明　·　进行中</p></div><button class="secondary" id="editProject">项目设置</button></div>
-        <div class="stepper"><button class="step active" data-page="project"><i>1</i><span>项目与沟通</span></button><b></b><button class="step" data-page="requirements"><i>2</i><span>需求与交付清单</span></button><b></b><button class="step" data-page="materials"><i>3</i><span>上传交付材料</span></button><b></b><button class="step" data-page="quality"><i>4</i><span>质量检查</span></button><b></b><button class="step" data-page="rehearsal"><i>5</i><span>汇报演练</span></button></div>
-        <div class="overview-grid">
-          <section class="surface"><div class="surface-heading"><div><h2>客户沟通接入</h2><p>导入历史聊天，或连接办公软件持续同步项目消息。</p></div><span class="local-pill"><i></i>仅同步授权项目会话</span></div>
-              <div class="connection-choice"><button class="choice active" data-source="import"><span class="choice-icon">⇧</span><b>导入历史记录</b><small>上传聊天导出文件，整理已有需求</small></button><button class="choice" data-source="screenshot"><span class="choice-icon image-icon">▧</span><b>截图识别</b><small>手动截图，或标注指定应用/群聊</small></button><button class="choice" data-source="bot"><span class="choice-icon bot-icon">◉</span><b>连接聊天机器人</b><small>加入办公软件项目群，持续接收新消息</small><em>需企业管理员配置</em></button></div>
-            <div id="importPanel" class="source-panel"><div class="upload-line"><div><b>项目聊天记录</b><small>支持 TXT / MD / CSV / JSON / Word / PDF / Excel（XLSX），建议包含时间、发言人和内容</small></div><button class="secondary" id="chatPick">选择聊天文件</button><input hidden type="file" id="chatInput" accept=".txt,.md,.csv,.json,.docx,.pdf,.xlsx,text/plain,text/markdown,text/csv,application/json,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></div><div id="chatSummary" class="inline-empty">尚未导入聊天记录</div></div>
-            <div id="screenshotPanel" class="source-panel hidden"><div class="screenshot-config"><div class="capture-modes"><label><input type="radio" name="captureMode" value="manual" checked> 我手动截屏后上传</label><label><input type="radio" name="captureMode" value="targeted"> 自动监测微信窗口</label></div><div id="targetCapture" class="target-capture hidden"><label>微信窗口<select id="wechatWindow"><option value="">点“刷新窗口”查找微信</option></select></label><button class="secondary" id="refreshWechatWindows">刷新窗口</button><label>目标群聊名称<input id="captureRoom" placeholder="请与微信顶部显示的群名一致"></label><label>检查间隔<select id="captureInterval"><option value="15">每 15 秒</option><option value="30">每 30 秒</option><option value="60">每 60 秒</option></select></label><div class="capture-controls"><button class="primary" id="startWechatCapture">开始监测</button><button class="secondary" id="stopWechatCapture" disabled>停止监测</button><span id="captureStatus">尚未开始监测</span></div><div class="capture-disclosure">仅在你点击开始后运行。服务会持续截取所选微信窗口，并用本机视觉模型核对群名；只有匹配且出现新消息时才保存截图并提取消息。关闭本页面不会停止，需点“停止监测”或关闭 Demo 服务。</div><div id="captureEvents" class="capture-events"></div></div><div class="screenshot-upload"><input hidden type="file" id="screenshotInput" accept="image/png,image/jpeg,image/webp"><button class="secondary" id="screenshotPick">选择本地截图</button><span id="screenshotName">支持 PNG / JPG / WEBP · 单张不超过 8 MB</span><button class="primary" id="recognizeScreenshot" disabled>本地识别截图</button></div><div class="ocr-model-row"><label>视觉模型<select id="visionModel"><option value="">检测本机视觉模型中…</option></select></label><button class="text-button" id="refreshVisionModels">刷新模型</button><span>识别与监测仅调用本机 Ollama，不会上传云端。</span></div><div class="vision-help">需安装支持图片输入的视觉模型。若未安装，可运行 <code>ollama pull qwen3-vl:4b</code>；普通文本模型（如 <code>qwen3:4b</code>）无法识图。</div><div id="screenshotResult" class="screenshot-result hidden"></div><button class="text-button demo-screenshot" id="loadScreenshotDemo">载入演示截图识别结果</button><div class="bot-notice">微信自动监测需要微信桌面端处于可见状态。部分使用 GPU 渲染的微信版本可能无法被 Windows 窗口截图接口捕获；请先用手动截图流程验证视觉模型。</div></div></div>
-            <div id="botPanel" class="source-panel hidden"><div class="bot-config"><label>办公软件<select id="botPlatform"><option>联想企业办公（演示连接器）</option><option>企业微信（待接入）</option><option>飞书（待接入）</option><option>钉钉（待接入）</option></select></label><label>项目群<select id="botRoom"><option>凌云办公协同升级项目群</option><option>凌云办公产品评审群</option></select></label><label>同步范围<select id="botScope"><option>从现在开始同步新消息</option><option>同步最近 30 天消息</option></select></label><div class="bot-config-actions"><button class="secondary" id="connectBot">模拟授权并连接</button><span class="permission-note">仅同步所选项目群；连接动作不会访问真实办公软件。</span></div></div><div class="bot-connection hidden" id="botConnection"><div class="bot-connect"><div class="bot-state"><span class="bot-state-icon connected">✓</span><div><b id="botStatus">机器人已连接</b><small id="botDetail">授权范围：凌云办公协同升级项目群</small></div></div><span class="sync-state"><i></i>实时同步中</span></div><div class="bot-stream-head"><b>最近接收的消息</b><button class="text-button" id="simulateIncoming">＋ 模拟新消息</button></div><div id="botMessages" class="bot-messages"><div class="bot-empty">连接后，项目群新消息会显示在这里。</div></div><div class="bot-notice">演示连接器：以下消息由 Demo 模拟，不会实际加入办公软件群或读取真实聊天。</div></div></div>
-          </section>
-          <section class="surface next-surface"><div class="surface-heading"><div><h2>项目推进</h2><p>从客户要求到汇报准备，逐步完成项目闭环。</p></div></div><div class="progress-list"><button data-page="requirements"><span class="progress-icon">01</span><span><b>确认需求并生成交付清单</b><small id="overviewReqText">等待导入聊天记录</small></span><strong>→</strong></button><button data-page="materials"><span class="progress-icon blue">02</span><span><b>上传交付文档、图片和视频</b><small id="overviewDocText">添加材料并关联清单项</small></span><strong>→</strong></button><button data-page="quality"><span class="progress-icon orange">03</span><span><b>检查材料质量和需求覆盖</b><small>依据项目规范生成问题与修改建议</small></span><strong>→</strong></button><button data-page="rehearsal"><span class="progress-icon purple">04</span><span><b>模拟汇报、提问与反馈</b><small>练习讲解并准备客户或领导追问</small></span><strong>→</strong></button></div></section>
+        <div class="statement-bar">
+          <span class="slash">/</span>
+          <p>导入聊天记录、会议纪要、转录稿，或通过本地 OCR 读取截图与微信 / Teams 窗口——识别出的原文保留来源并直接进入需求候选区。</p>
         </div>
-        <section class="surface spec-surface"><div class="surface-heading"><div><h2>项目检查规范</h2><p>导入 PRD 或输入汇报逻辑、内容完整性和数据核验要求。</p></div><span class="optional-label">可随时补充</span></div><textarea id="rules" placeholder="例如：汇报需包含客户痛点、解决方案、上线计划和风险；所有数据需标明来源和统计口径。"></textarea><div class="spec-footer"><span>规范将用于交付材料检查和模拟汇报反馈</span><button class="text-button" id="saveRules">保存规范</button></div></section><div class="flow-actions"><span>项目与沟通完成后，继续确认客户需求。</span><button class="primary" data-next="requirements">下一步：需求与交付清单 →</button></div>
+
+        <div class="overview-grid">
+          <section class="surface intake-surface">
+            <div class="surface-heading">
+              <div>
+                <h2>01 · 采集客户沟通资料与截图</h2>
+                <p>支持多源导入，所有原文仅保留在本项目工作空间中。</p>
+              </div>
+              <span class="local-pill"><i></i>仅同步授权项目会话</span>
+            </div>
+
+            <div class="connection-choice" role="tablist">
+              <button class="choice active" data-source="import" type="button">
+                <span class="choice-icon">01</span>
+                <b>导入文档与粘贴文本</b>
+                <small>聊天导出、会议纪要、转录稿与直接粘贴原文</small>
+              </button>
+              <button class="choice" data-source="screenshot" type="button">
+                <span class="choice-icon image-icon">02</span>
+                <b>截图与窗口 OCR</b>
+                <small>手动 / 剪贴板截图，或指定微信 / Teams 窗口</small>
+              </button>
+              <button class="choice" data-source="bot" type="button">
+                <span class="choice-icon bot-icon">03</span>
+                <b>群聊接入演示</b>
+                <small>模拟项目群消息持续同步进入候选区</small>
+                <em>演示连接器</em>
+              </button>
+            </div>
+
+            <!-- Panel: Import files or paste text -->
+            <div id="importPanel" class="source-panel">
+              <div class="dropzone" id="chatDropzone">
+                <div class="dropzone-body">
+                  <strong>拖拽聊天记录、会议纪要、转录稿或其他项目资料到此</strong>
+                  <small>支持 TXT / MD / CSV / JSON / Word (DOCX) / PDF / Excel (XLSX) · 单文件上限 8 MB</small>
+                </div>
+                <button class="secondary" id="chatPick" type="button">选择资料文件</button>
+                <input hidden type="file" id="chatInput" multiple accept=".txt,.md,.csv,.json,.docx,.pdf,.xlsx,text/plain,text/markdown,text/csv,application/json,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+              </div>
+
+              <div class="inline-status-bar">
+                <span id="chatSummary" class="inline-empty">尚未导入聊天记录或会议纪要</span>
+                <button class="text-button" id="togglePasteBox" type="button">＋ 直接粘贴沟通原文</button>
+              </div>
+
+              <div id="pasteSourceBox" class="paste-box hidden">
+                <div class="paste-meta-row">
+                  <label>资料类型
+                    <select id="pasteSourceType">
+                      <option value="微信聊天记录">微信聊天记录</option>
+                      <option value="Teams 沟通">Teams 沟通</option>
+                      <option value="会议纪要">会议纪要</option>
+                      <option value="语音转录稿">语音转录稿</option>
+                      <option value="客户邮件/其他资料">客户邮件/其他资料</option>
+                    </select>
+                  </label>
+                  <label>发言人 / 客户方（可选）
+                    <input id="pasteSpeaker" placeholder="例如：客户王经理">
+                  </label>
+                </div>
+                <textarea id="pasteRawInput" rows="4" placeholder="直接粘贴客户原话、会议纪要或语音转录（每行一条，支持“时间 | 发言人 | 内容”）…"></textarea>
+                <div class="paste-actions">
+                  <small>导入后将直接进入需求候选区</small>
+                  <button class="primary small" id="addRawPaste" type="button">加入需求候选区</button>
+                </div>
+              </div>
+
+              <div id="chatSourceList" class="source-chips-list"></div>
+            </div>
+
+            <!-- Panel: Screenshot & WeChat/Teams Window OCR -->
+            <div id="screenshotPanel" class="source-panel hidden">
+              <div class="screenshot-config">
+                <div class="capture-modes">
+                  <label class="mode-pill">
+                    <input type="radio" name="captureMode" value="manual" checked>
+                    <span>手动上传 / 粘贴截图</span>
+                  </label>
+                  <label class="mode-pill">
+                    <input type="radio" name="captureMode" value="targeted">
+                    <span>指定微信 / Teams 窗口自动采集</span>
+                  </label>
+                </div>
+
+                <div id="targetCapture" class="target-capture hidden">
+                  <label>选择桌面窗口（微信 / Microsoft Teams）
+                    <select id="wechatWindow"><option value="">点击「刷新窗口」查找微信或 Teams</option></select>
+                  </label>
+                  <button class="secondary" id="refreshWechatWindows" type="button">刷新窗口</button>
+                  <label>目标群聊 / 频道名称
+                    <input id="captureRoom" placeholder="请与微信群名或 Teams 频道标题一致">
+                  </label>
+                  <label>采集检查间隔
+                    <select id="captureInterval">
+                      <option value="15">每 15 秒</option>
+                      <option value="30">每 30 秒</option>
+                      <option value="60">每 60 秒</option>
+                    </select>
+                  </label>
+                  <div class="capture-controls">
+                    <button class="primary" id="startWechatCapture" type="button">开始监测</button>
+                    <button class="secondary" id="stopWechatCapture" type="button" disabled>停止监测</button>
+                    <span id="captureStatus">尚未开始监测</span>
+                  </div>
+                  <div class="capture-disclosure">
+                    仅在你点击「开始监测」后运行。系统会截取所选桌面窗口并交由本机视觉模型核对标题；只有匹配且出现新消息时才保存截图并把识别原文送入需求候选区。
+                  </div>
+                  <div id="captureEvents" class="capture-events"></div>
+                </div>
+
+                <div class="screenshot-upload dropzone compact" id="screenshotDropzone">
+                  <input hidden type="file" id="screenshotInput" accept="image/png,image/jpeg,image/webp">
+                  <div class="screenshot-upload-info">
+                    <strong id="screenshotName">支持选择、拖拽或 Ctrl/Cmd + V 直接粘贴截图</strong>
+                    <small>PNG / JPG / WEBP · 单张不超过 8 MB · 本地 OCR 识别原文直接进入需求候选区</small>
+                  </div>
+                  <div class="screenshot-upload-btns">
+                    <button class="secondary" id="screenshotPick" type="button">选择截图</button>
+                    <button class="primary" id="recognizeScreenshot" type="button" disabled>本地 OCR 识别</button>
+                  </div>
+                </div>
+
+                <div id="screenshotPreviewWrap" class="screenshot-preview hidden">
+                  <img id="screenshotPreviewImg" alt="待识别截图预览">
+                </div>
+
+                <div class="ocr-model-row">
+                  <label>本机视觉模型
+                    <select id="visionModel"><option value="">检测本机视觉模型中…</option></select>
+                  </label>
+                  <button class="text-button" id="refreshVisionModels" type="button">刷新模型</button>
+                  <span>OCR 与窗口监测仅调用本机 Ollama，截图不出本机。</span>
+                </div>
+                <div class="vision-help">
+                  需安装支持图片输入的本机视觉模型（如运行 <code>ollama pull qwen3-vl:4b</code>；普通文本模型不能读图）。
+                </div>
+                <div id="screenshotResult" class="screenshot-result hidden"></div>
+                <div class="ocr-demo-row">
+                  <button class="text-button demo-screenshot" id="loadScreenshotDemo" type="button">载入演示截图 OCR 结果</button>
+                  <span class="muted-hint">微信/Teams 桌面窗口需保持打开且未最小化</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Panel: Simulated Bot -->
+            <div id="botPanel" class="source-panel hidden">
+              <div class="bot-config">
+                <label>办公平台
+                  <select id="botPlatform">
+                    <option>联想企业办公（演示连接器）</option>
+                    <option>企业微信（待接入）</option>
+                    <option>Microsoft Teams（待接入）</option>
+                    <option>飞书 / 钉钉（待接入）</option>
+                  </select>
+                </label>
+                <label>目标项目群
+                  <select id="botRoom">
+                    <option>凌云办公协同升级项目群</option>
+                    <option>凌云办公产品评审群</option>
+                  </select>
+                </label>
+                <label>同步范围
+                  <select id="botScope">
+                    <option>从现在开始同步新消息</option>
+                    <option>同步最近 30 天消息</option>
+                  </select>
+                </label>
+                <div class="bot-config-actions">
+                  <button class="secondary" id="connectBot" type="button">模拟授权并连接</button>
+                  <span class="permission-note">仅用于演示群聊消息自动流入候选区，不会接入真实办公软件群。</span>
+                </div>
+              </div>
+              <div class="bot-connection hidden" id="botConnection">
+                <div class="bot-connect">
+                  <div class="bot-state">
+                    <span class="bot-state-icon connected">✓</span>
+                    <div>
+                      <b id="botStatus">机器人已连接</b>
+                      <small id="botDetail">授权范围：凌云办公协同升级项目群</small>
+                    </div>
+                  </div>
+                  <span class="sync-state"><i></i>实时同步中</span>
+                </div>
+                <div class="bot-stream-head">
+                  <b>最近接收的消息</b>
+                  <button class="text-button" id="simulateIncoming" type="button">＋ 模拟新消息</button>
+                </div>
+                <div id="botMessages" class="bot-messages">
+                  <div class="bot-empty">连接后，项目群新消息会显示在这里。</div>
+                </div>
+                <div class="bot-notice">演示连接器：以下消息由 Demo 模拟，不会实际加入办公软件群。</div>
+              </div>
+            </div>
+          </section>
+
+          <div class="overview-side">
+            <!-- Deep-Navy Anchor + Vertical Accent Rows (PPT Slide 4 style) -->
+            <section class="navy-anchor-card">
+              <div class="navy-anchor-head">交付推进路由</div>
+              <div class="progress-list">
+                <button data-page="requirements" type="button">
+                  <span class="v-bar b1"></span>
+                  <span>
+                    <b>确认需求与交付清单</b>
+                    <small id="overviewReqText">等待导入客户沟通资料</small>
+                  </span>
+                  <strong>→</strong>
+                </button>
+                <button data-page="materials" type="button">
+                  <span class="v-bar b2"></span>
+                  <span>
+                    <b>挂载交付材料到清单项</b>
+                    <small id="overviewDocText">将文件上传到对应交付项</small>
+                  </span>
+                  <strong>→</strong>
+                </button>
+                <button data-page="quality" type="button">
+                  <span class="v-bar b3"></span>
+                  <span>
+                    <b>核验覆盖、口径与逻辑</b>
+                    <small>按客户需求、PRD 与汇报规范逐点定位原文</small>
+                  </span>
+                  <strong>→</strong>
+                </button>
+                <button data-page="rehearsal" type="button">
+                  <span class="v-bar b4"></span>
+                  <span>
+                    <b>模拟提问与复盘知识库</b>
+                    <small>语音/文字应对追问，沉淀经验供下次引用</small>
+                  </span>
+                  <strong>→</strong>
+                </button>
+              </div>
+            </section>
+
+            <section class="surface spec-surface">
+              <div class="surface-heading">
+                <div>
+                  <h2>02 · PRD 与汇报检查规范</h2>
+                  <p>导入 PRD 或输入汇报逻辑、数据口径与重点要求。</p>
+                </div>
+                <button class="secondary small" id="prdPick" type="button">导入 PRD 文件</button>
+                <input hidden type="file" id="prdInput" accept=".txt,.md,.csv,.docx,.pdf">
+              </div>
+              <div class="rule-chips">
+                <button class="chip-btn" type="button" data-rule-tpl="所有业务指标必须注明数据来源、统计周期与计算口径；">＋ 数据口径规范</button>
+                <button class="chip-btn" type="button" data-rule-tpl="汇报逻辑需依次覆盖：客户痛点、解决方案、实施排期与风险保障；">＋ 汇报结构规范</button>
+                <button class="chip-btn" type="button" data-rule-tpl="预算与报价金额需明确含税或不含税口径，并给出支撑表出处；">＋ 报价与含税口径</button>
+              </div>
+              <textarea id="rules" placeholder="输入或从文件导入 PRD 核心要求、数据口径要求、汇报逻辑与领导关注重点…"></textarea>
+              <div class="spec-footer">
+                <span>规范将同步用于材料质检与汇报教练出题</span>
+                <button class="primary small" id="saveRules" type="button">保存规范</button>
+              </div>
+            </section>
+          </div>
+        </div>
+
+        <div class="flow-actions">
+          <span><strong>当前进度：</strong>资料与 PRD 规范准备就绪后，前往整理客户需求并生成交付清单。</span>
+          <button class="btn-flow-next" data-next="requirements" type="button">下一步：确认交付清单 →</button>
+        </div>
       </section>
-      <section class="page" id="page-requirements"><div class="page-heading"><div><div class="eyebrow" id="requirementsProjectName">凌云办公协同升级</div><h1>需求与交付清单</h1><p>从客户沟通提取要求，逐条确认后转成交付任务。</p></div><button class="primary" id="extractBtn">✳ 识别聊天需求</button></div><div class="two-column"><section class="surface"><div class="surface-heading"><div><h2>需求候选 <span class="count-chip" id="reqCount">0</span></h2><p>保留原始消息来源，确认后再纳入项目基线。</p></div><button class="text-button" id="loadSample">载入演示项目</button></div><div id="requirementsList" class="empty-state"><div class="empty-symbol">☷</div><b>还没有需求候选</b><span>先导入聊天记录，或载入演示项目查看完整流程。</span></div></section><section class="surface"><div class="surface-heading"><div><h2>交付清单 <span class="count-chip" id="deliverableCount">0</span></h2><p>将确认的需求整理成可执行、可验收的交付项。</p></div><button class="secondary" id="addDeliverable">＋ 添加清单项</button></div><div id="deliverablesList" class="empty-state compact"><div class="empty-symbol">☑</div><b>确认需求后生成交付清单</b><span>可设置交付物、负责人、截止时间和验收标准。</span></div></section></div><div class="flow-actions"><span>需求确认后上传对应交付文档、图片或视频。</span><button class="primary" data-next="materials">下一步：上传交付材料 →</button></div></section>
-      <section class="page" id="page-materials"><div class="page-heading"><div><div class="eyebrow">项目交付</div><h1>交付材料</h1><p>上传销售或产品准备的文档、图片和视频，并关联对应清单项。</p></div><button class="primary" id="docPick">＋ 上传材料</button><input hidden type="file" id="docInput" multiple accept=".txt,.md,.csv,.png,.jpg,.jpeg,.webp,.mp4,.webm,.pdf,.docx,.xlsx"></div><div class="surface material-toolbar"><div class="filter-pills"><button class="filter-pill active">全部材料 <span id="materialCount">0</span></button><button class="filter-pill">待检查</button><button class="filter-pill">已检查</button></div><span class="supported">文档 · 图片 · 视频　|　文本质检支持 TXT / MD / CSV / DOCX / PDF / Excel（XLSX）</span></div><div id="materialsList" class="material-grid"><div class="empty-state wide"><div class="empty-symbol">▤</div><b>还没有上传交付材料</b><span>上传文件后，为材料关联清单项并运行质量检查。</span><button class="secondary" id="emptyUpload">选择项目文件</button></div></div><div class="flow-actions"><span>材料上传完成后，运行项目级质量检查。</span><button class="primary" data-next="quality">下一步：质量检查 →</button></div></section>
-      <section class="page" id="page-quality"><div class="page-heading"><div><h1>质量检查</h1><p>对照确认后的客户需求、交付清单和项目规范检查材料。</p></div><button class="primary" id="runReview">运行项目检查 →</button></div><div class="quality-summary"><div><b id="qualityReqs">0</b><span>确认需求</span></div><div><b id="qualityDocs">0</b><span>项目材料</span></div><div><b id="qualityIssues">待运行</b><span>待补充检查点</span></div><div><b id="qualityModel">本地模型</b><span>检查方式</span></div></div><section class="surface report-surface"><div class="surface-heading"><div><h2>检查结果</h2><p>每条问题显示关联需求、材料证据和修改建议。</p></div><span class="local-pill" id="reviewProviderBadge">调用本机 Ollama</span></div><div id="report" class="empty-state"><div class="empty-symbol">✓</div><b>准备好材料后运行检查</b><span>逐条展示核验结论、材料原文和待确认项。</span></div></section><div class="flow-actions"><span>检查完成后，进入汇报演练准备讲解和答疑。</span><button class="primary" data-next="rehearsal">下一步：汇报演练 →</button></div></section>
+
+      <!-- PAGE 2: REQUIREMENTS & DELIVERABLES -->
+      <section class="page" id="page-requirements">
+        <div class="page-heading">
+          <div>
+            <div class="eyebrow" id="requirementsProjectName">凌云办公协同升级</div>
+            <h1>确认交付清单</h1>
+            <p>点击「分析客户需求」，模型保留原文来源并列出需求描述、注意事项、交付物、交付时间、格式要求（未交代显示「未说明」）。</p>
+          </div>
+          <div class="heading-actions">
+            <button class="secondary" id="loadSample" type="button">载入演示项目</button>
+            <button class="secondary" id="addRequirementManual" type="button">＋ 手动补充要求</button>
+            <button class="primary" id="extractBtn" type="button">✳ 分析客户需求</button>
+          </div>
+        </div>
+
+        <div class="analysis-banner" id="analysisStatusBar">
+          <span><b class="slash-inline">/</b> 当前使用 <strong id="analysisModelLabel">本机模型</strong> 整理需求；原文未交代的字段自动标记为「未说明」，经人工确认后生成正式交付清单。</span>
+          <div class="analysis-banner-actions">
+            <button class="text-button" id="ruleExtractFallback" type="button">快速离线规则预整理</button>
+            <button class="text-button" id="confirmAllReqs" type="button">✓ 确认全部待审</button>
+          </div>
+        </div>
+
+        <div class="two-column req-workbench">
+          <section class="surface">
+            <div class="surface-heading">
+              <div>
+                <h2>需求候选区 <span class="count-chip" id="reqCount">0</span></h2>
+                <p>保留原始出处与五字段拆解，核对无误后纳入右侧正式清单。</p>
+              </div>
+              <div class="mini-tabs" role="tablist">
+                <button class="mini-tab active" data-req-filter="all" type="button">全部</button>
+                <button class="mini-tab" data-req-filter="待确认" type="button">待确认</button>
+                <button class="mini-tab" data-req-filter="已确认" type="button">已确认</button>
+              </div>
+            </div>
+            <div id="requirementsList" class="empty-state">
+              <div class="empty-symbol">☷</div>
+              <b>还没有需求候选</b>
+              <span>先在「采集客户需求」导入资料或识别截图，再点击「分析客户需求」。</span>
+            </div>
+          </section>
+
+          <section class="surface">
+            <div class="surface-heading">
+              <div>
+                <h2>正式交付清单 <span class="count-chip" id="deliverableCount">0</span></h2>
+                <p>人工确认后生成可执行清单项，支持直接上传对应交付材料。</p>
+              </div>
+              <button class="secondary" id="addDeliverable" type="button">＋ 添加清单项</button>
+            </div>
+            <div id="deliverablesList" class="empty-state compact">
+              <div class="empty-symbol">☑</div>
+              <b>确认需求后生成交付清单</b>
+              <span>可编辑交付物、交付时间、格式要求、负责人与验收标准。</span>
+            </div>
+          </section>
+        </div>
+
+        <div class="flow-actions">
+          <span><strong>基线确认：</strong>正式交付清单确认后，按清单项上传对应交付材料。</span>
+          <button class="btn-flow-next" data-next="materials" type="button">下一步：上传并检查材料 →</button>
+        </div>
+      </section>
+
+      <!-- PAGE 3: MATERIALS -->
+      <section class="page" id="page-materials">
+        <div class="page-heading">
+          <div>
+            <div class="eyebrow">材料与清单项对齐</div>
+            <h1>交付材料</h1>
+            <p>把准备好的文档、表格、图片或视频上传到对应清单项，并可随时打开行号级正文预览核查位置。</p>
+          </div>
+          <button class="primary" id="docPick" type="button">＋ 上传材料</button>
+          <input hidden type="file" id="docInput" multiple accept=".txt,.md,.csv,.png,.jpg,.jpeg,.webp,.mp4,.webm,.pdf,.docx,.xlsx">
+        </div>
+
+        <section class="surface checklist-slots-surface">
+          <div class="surface-heading">
+            <div>
+              <h2>按清单项配齐交付物</h2>
+              <p>点击任意清单项的上传按钮，直接把交付文件挂载到该项目清单中。</p>
+            </div>
+            <span class="slot-summary" id="slotCoverageSummary">尚未生成交付清单项</span>
+          </div>
+          <div id="deliverableSlots" class="deliverable-slots"></div>
+        </section>
+
+        <div class="dropzone compact" id="materialDropzone">
+          <div class="dropzone-body">
+            <strong>批量拖拽交付文件到此区域上传</strong>
+            <small>正文核验支持 TXT / MD / CSV / DOCX / 可搜索 PDF / Excel (XLSX)；图片与视频保留为附件清单记录</small>
+          </div>
+          <button class="secondary" id="docPickAlt" type="button">浏览本地文件</button>
+        </div>
+
+        <div class="surface material-toolbar">
+          <div class="filter-pills" role="tablist">
+            <button class="filter-pill active" data-mat-filter="all" type="button">全部材料 <span id="materialCount">0</span></button>
+            <button class="filter-pill" data-mat-filter="待检查" type="button">待检查 <span id="materialPendingCount">0</span></button>
+            <button class="filter-pill" data-mat-filter="已检查" type="button">已检查 <span id="materialDoneCount">0</span></button>
+            <button class="filter-pill" data-mat-filter="unlinked" type="button">未关联清单 <span id="materialUnlinkedCount">0</span></button>
+          </div>
+          <span class="supported">点击文本材料的「预览行号」可对照质检报告引用的具体位置</span>
+        </div>
+
+        <div id="materialsList" class="material-grid">
+          <div class="empty-state wide">
+            <div class="empty-symbol">▤</div>
+            <b>还没有上传交付材料</b>
+            <span>上传文件后，为材料关联清单项并运行质量检查。</span>
+            <button class="secondary" id="emptyUpload" type="button">选择项目文件</button>
+          </div>
+        </div>
+
+        <div class="flow-actions">
+          <span><strong>材料就绪：</strong>交付材料关联完毕后，运行项目级覆盖度与口径核验。</span>
+          <button class="btn-flow-next" data-next="quality" type="button">下一步：质量检查 →</button>
+        </div>
+      </section>
+
+      <!-- PAGE 4: QUALITY CHECK -->
+      <section class="page" id="page-quality">
+        <div class="page-heading">
+          <div>
+            <div class="eyebrow">覆盖情况 · 材料完整度 · 数据口径 · 汇报逻辑</div>
+            <h1>质量检查与原文定位</h1>
+            <p>按客户需求、PRD 与汇报规范逐点核查；发现缺项或矛盾时，给出原文位置与修改建议。</p>
+          </div>
+          <button class="primary" id="runReview" type="button">运行项目检查 →</button>
+        </div>
+
+        <!-- Slide-4 Asymmetric Anchor KPI Layout -->
+        <div class="quality-showcase">
+          <div class="quality-hero-navy">
+            <span class="qh-kicker">核验待处理项</span>
+            <div class="qh-big-row">
+              <b id="qualityIssues">待运行</b>
+              <span id="qualityIssuesUnit">点击右侧按钮开始逐条核验</span>
+            </div>
+            <p class="qh-sub">基于原文连续片段校验，不凭空编造引用</p>
+          </div>
+          <div class="quality-summary">
+            <div class="qs-row"><span class="v-bar b1"></span><div><span>已确认客户需求</span><b id="qualityReqs">0</b></div></div>
+            <div class="qs-row"><span class="v-bar b2"></span><div><span>项目材料数量</span><b id="qualityDocs">0</b></div></div>
+            <div class="qs-row"><span class="v-bar b3"></span><div><span>当前核验方式</span><b id="qualityModel">本地模型</b></div></div>
+          </div>
+        </div>
+
+        <section class="surface report-surface">
+          <div class="surface-heading">
+            <div>
+              <h2>检查结果与原文证据</h2>
+              <p>点击任意材料引用标签，直接滑出原文并高亮定位对应行号。</p>
+            </div>
+            <div class="report-head-actions">
+              <span class="local-pill" id="reviewProviderBadge">调用本机 Ollama</span>
+              <button class="secondary small hidden" id="toggleReportViewBtn" type="button">切换完整报告视图</button>
+              <button class="secondary small hidden" id="copyReportBtn" type="button">复制报告</button>
+              <button class="secondary small hidden" id="exportReportBtn" type="button">导出 Markdown</button>
+            </div>
+          </div>
+          <div id="report" class="empty-state">
+            <div class="empty-symbol">✓</div>
+            <b>准备好材料后运行检查</b>
+            <span>系统将逐条比对需求原文、PRD 与材料，不虚构引用，无法证实的时间或回执保留给人工核对。</span>
+          </div>
+        </section>
+
+        <div class="flow-actions">
+          <span><strong>质检核对完成：</strong>根据修改建议补齐材料后，进入汇报演练与复盘。</span>
+          <button class="btn-flow-next" data-next="rehearsal" type="button">下一步：演练与复盘 →</button>
+        </div>
+      </section>
+
+      <!-- PAGE 5: REHEARSAL & KNOWLEDGE BASE -->
       <section class="page" id="page-rehearsal">
         <div class="page-heading">
-          <div><h1>模拟汇报与问答</h1><p>练习回答客户或评审的追问，获得具体反馈。</p></div>
+          <div>
+            <div class="eyebrow">客户/领导视角模拟 · 语音输入 · 个人知识库</div>
+            <h1>演练与复盘</h1>
+            <p>按客户或领导视角模拟追问，支持语音或文字作答；可将反馈复盘保存到本地个人知识库，供后续演练引用。</p>
+          </div>
           <span class="local-pill" id="rehearsalProvider">调用本机 Ollama</span>
         </div>
+
         <div class="rehearsal-grid">
           <section class="surface rehearsal-setup">
-            <div class="surface-heading"><h2>演练设置</h2></div>
-            <label>模拟听众<select id="audience"><option>客户项目负责人</option><option>公司领导</option><option>技术评审团队</option></select></label>
-            <label>汇报时长<select id="duration"><option>5 分钟</option><option>10 分钟</option><option>15 分钟</option></select></label>
-            <label>本次重点<textarea id="rehearsalFocus" maxlength="400" placeholder="例如：数据指标解释、上线安排和安全保障"></textarea></label>
-            <div class="rehearsal-actions">
-              <button class="primary" id="startRehearsal" type="button">开始文字演练</button>
-              <button class="secondary" id="micButton" type="button">🎙 语音演练演示</button>
+            <div class="surface-heading"><h2>演练配置</h2></div>
+            <label>模拟提问视角
+              <select id="audience">
+                <option>客户项目负责人</option>
+                <option>公司领导（汇报评审）</option>
+                <option>技术与安全评审团队</option>
+                <option>客户商务与采购负责人</option>
+              </select>
+            </label>
+            <label>汇报时长
+              <select id="duration">
+                <option>5 分钟</option>
+                <option>10 分钟</option>
+                <option>15 分钟</option>
+              </select>
+            </label>
+            <label>本次演练重点
+              <textarea id="rehearsalFocus" maxlength="400" placeholder="例如：数据口径解释、含税报价依据、上线排期与本地部署安全"></textarea>
+            </label>
+
+            <div class="kb-cite-box">
+              <div class="kb-cite-head">
+                <span>引用个人复盘知识库</span>
+                <button class="text-button" id="scrollToKbBtn" type="button">管理 / 勾选复盘 ↓</button>
+              </div>
+              <div id="citedKbChips" class="cited-kb-chips">
+                <small class="muted-hint">未引用历史复盘（可在下方知识库勾选）</small>
+              </div>
             </div>
+
+            <div class="rehearsal-actions">
+              <button class="primary" id="startRehearsal" type="button">开始模拟提问</button>
+              <button class="secondary" id="micButton" type="button">🎙 语音回答</button>
+            </div>
+
+            <div class="voice-status-box">
+              <div class="voice-status-row">
+                <span id="voiceStatus" class="voice-status-text">支持浏览器中文语音输入或文字作答</span>
+                <label class="tts-toggle">
+                  <input type="checkbox" id="autoReadTts" checked>
+                  <span>朗读提问</span>
+                </label>
+              </div>
+              <div id="voiceMeterWrap" class="voice-meter-wrap hidden">
+                <div class="voice-meter-bar"><i id="voiceLevelBar"></i></div>
+                <small id="voiceLiveHint">正在聆听中文语音，说完后可核对文字并点击发送</small>
+              </div>
+            </div>
+
             <p id="rehearsalDestination" class="rehearsal-note">项目内容与回答由本机 Ollama 处理。</p>
           </section>
+
           <section class="surface coach-surface">
             <div class="coach-head">
-              <div class="coach-avatar">AI</div>
-              <b>汇报教练</b>
-              <span id="rehearsalStatus" class="coach-live" role="status">待开始</span>
+              <div class="coach-avatar">智</div>
+              <div>
+                <b>智汇汇报教练</b>
+                <small id="coachRoleHint">围绕已确认需求、材料原文与引用复盘出题</small>
+              </div>
+              <div class="coach-head-right">
+                <span id="rehearsalClock" class="coach-clock">05:00</span>
+                <span id="rehearsalStatus" class="coach-live" role="status">待开始</span>
+              </div>
             </div>
+
             <div class="conversation" id="conversation" role="log" aria-label="演练问答">
-              <div class="coach-message">点击「开始文字演练」，由 AI 生成第一个问题。</div>
+              <div class="coach-message">选择模拟视角与演练重点后，点击「开始模拟提问」，教练将基于当前项目要求与材料生成首问。</div>
             </div>
+
             <div id="rehearsalError" class="rehearsal-error" role="alert"></div>
+
             <div class="answer-box">
-              <textarea id="answerInput" aria-label="回答当前问题" maxlength="800" placeholder="等首问生成后即可回答" disabled></textarea>
-              <button class="primary" id="sendAnswer" type="button" disabled>发送</button>
+              <textarea id="answerInput" aria-label="回答当前问题" maxlength="1200" placeholder="等首问生成后，可用语音或文字输入回答（Enter 发送，Shift+Enter 换行）" disabled></textarea>
+              <button class="primary" id="sendAnswer" type="button" disabled>发送回答</button>
             </div>
           </section>
         </div>
+
         <section class="surface feedback-surface">
-          <div class="surface-heading"><h2>演练反馈</h2></div>
-          <div id="feedback" class="feedback-placeholder" aria-live="polite">回答后，这里会显示本轮反馈。</div>
+          <div class="surface-heading">
+            <div>
+              <h2>本轮演练反馈与证据评价</h2>
+              <p>根据语音或文字回答指出遗漏、口径问题与可援引的材料依据。</p>
+            </div>
+            <button class="primary" id="saveToKnowledge" type="button" disabled>＋ 保存复盘到个人知识库</button>
+          </div>
+          <div id="feedback" class="feedback-placeholder" aria-live="polite">回答首问后，这里会展示总评、亮点、改进建议与可引用的材料出处。</div>
+        </section>
+
+        <!-- Local Personal Knowledge Base Section -->
+        <section class="surface kb-surface" id="knowledgeBaseSection">
+          <div class="surface-heading">
+            <div>
+              <h2>本地个人复盘知识库 <span class="count-chip" id="kbCountChip">0</span></h2>
+              <p>复盘经验持久化保存在本地，后续在任何项目演练时勾选「引用」，教练将围绕历史弱点进行针对性追问检验。</p>
+            </div>
+            <div class="kb-head-actions">
+              <button class="secondary small" id="seedKbSample" type="button">载入示例复盘</button>
+              <button class="primary small" id="newKbNote" type="button">＋ 手动记录复盘</button>
+            </div>
+          </div>
+
+          <div class="kb-toolbar">
+            <input id="kbSearch" placeholder="搜索复盘标题、标签、追问原题或结论…">
+            <select id="kbAudienceFilter" aria-label="按视角筛选复盘">
+              <option value="">全部视角</option>
+              <option value="客户项目负责人">客户项目负责人</option>
+              <option value="公司领导">公司领导</option>
+              <option value="技术与安全评审团队">技术与安全评审团队</option>
+              <option value="客户商务与采购负责人">客户商务与采购负责人</option>
+            </select>
+          </div>
+
+          <div id="kbList" class="kb-grid"></div>
         </section>
       </section>
-      <footer><span>项目交付助手 · Demo v0.2</span><span id="processingNotice">模型来源决定质检数据的处理位置 · 外部聊天平台连接当前为演示状态</span></footer>
+
+      <footer>
+        <span>智汇 · 本地 AI 项目交付助手 v0.3</span>
+        <span id="processingNotice">模型来源决定质检数据的处理位置 · 外部聊天平台连接当前为演示状态</span>
+      </footer>
     </main>
   </div>
+
+  <!-- Toast Container -->
+  <div id="toastContainer" class="toast-container" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- Slide-over Material Line Preview Drawer -->
+  <aside id="materialPreviewDrawer" class="preview-drawer hidden" aria-labelledby="previewDrawerTitle" aria-modal="true" role="dialog">
+    <div class="preview-drawer-head">
+      <div>
+        <div class="eyebrow">材料原文定位</div>
+        <h2 id="previewDrawerTitle">材料预览</h2>
+      </div>
+      <button class="close" id="closePreviewDrawer" type="button" aria-label="关闭预览">×</button>
+    </div>
+    <div id="previewDrawerMeta" class="preview-drawer-meta"></div>
+    <div id="previewDrawerBody" class="preview-drawer-body"></div>
+  </aside>
+
+  <!-- Dialog: Project Create / Rename / Edit -->
   <dialog id="projectDialog" aria-labelledby="projectDialogTitle">
     <form method="dialog" id="projectForm">
-      <div class="dialog-head"><h2 id="projectDialogTitle">新增项目</h2><button class="close" type="button" data-close-project aria-label="关闭">×</button></div>
-      <label>项目名称<input id="projectNameInput" required pattern=".*\S.*" autofocus></label>
+      <div class="dialog-head">
+        <h2 id="projectDialogTitle">新增项目</h2>
+        <button class="close" type="button" data-close-project aria-label="关闭">×</button>
+      </div>
+      <label>项目名称<input id="projectNameInput" required pattern=".*\S.*" autofocus placeholder="例如：凌云办公协同二期交付"></label>
       <div id="projectDetailsFields">
-        <label>客户名称<input id="projectCustomerInput" placeholder="例如：某某企业"></label>
+        <label>客户名称<input id="projectCustomerInput" placeholder="例如：联想办公软件团队"></label>
         <label>项目负责人<input id="projectOwnerInput" placeholder="姓名"></label>
       </div>
       <p id="projectFormError" role="alert" class="dialog-copy" hidden></p>
-      <div class="dialog-actions"><button class="secondary" type="button" data-close-project>取消</button><button class="primary" type="submit" id="saveProject">保存</button></div>
+      <div class="dialog-actions">
+        <button class="secondary" type="button" data-close-project>取消</button>
+        <button class="primary" type="submit" id="saveProject">保存</button>
+      </div>
     </form>
   </dialog>
+
+  <!-- Dialog: Edit / Add Structured Requirement -->
+  <dialog id="requirementDialog" class="wide-dialog" aria-labelledby="requirementDialogTitle">
+    <form method="dialog" id="requirementForm">
+      <div class="dialog-head">
+        <div>
+          <div class="eyebrow">STRUCTURED REQUIREMENT</div>
+          <h2 id="requirementDialogTitle">编辑客户要求</h2>
+        </div>
+        <button class="close" type="button" data-close-req aria-label="关闭">×</button>
+      </div>
+      <label>需求描述 *<textarea id="reqFieldDesc" rows="3" required placeholder="清晰概括客户提出的具体要求"></textarea></label>
+      <div class="form-grid-2">
+        <label>交付物<input id="reqFieldDeliverable" placeholder="例如：预算明细表（未提及留空显示 未说明）"></label>
+        <label>交付时间<input id="reqFieldDueTime" placeholder="例如：周五前（未提及留空显示 未说明）"></label>
+        <label>格式要求<input id="reqFieldFormat" placeholder="例如：Excel / PDF（未提及留空显示 未说明）"></label>
+        <label>原始出处<input id="reqFieldEvidence" placeholder="例如：微信群 · 2026-11-14 · 王经理"></label>
+      </div>
+      <label>注意事项<textarea id="reqFieldNotes" rows="2" placeholder="例如：预算按含税口径（未提及留空显示 未说明）"></textarea></label>
+      <div class="dialog-actions">
+        <button class="secondary" type="button" data-close-req>取消</button>
+        <button class="primary" type="submit" id="saveRequirementBtn">保存要求</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Dialog: Add / Edit Deliverable -->
+  <dialog id="deliverableDialog" aria-labelledby="deliverableDialogTitle">
+    <form method="dialog" id="deliverableForm">
+      <div class="dialog-head">
+        <div>
+          <div class="eyebrow">DELIVERABLE CHECKLIST</div>
+          <h2 id="deliverableDialogTitle">添加交付清单项</h2>
+        </div>
+        <button class="close" type="button" data-close-del aria-label="关闭">×</button>
+      </div>
+      <label>交付物名称 *<input id="deliverableName" required placeholder="例如：上线实施计划"></label>
+      <div class="form-grid-2">
+        <label>交付时间<input id="deliverableDueTime" placeholder="例如：周五前 / 未说明"></label>
+        <label>格式要求<input id="deliverableFormat" placeholder="例如：Excel / PDF / 未说明"></label>
+      </div>
+      <label>验收标准<input id="deliverableStandard" placeholder="例如：含试点范围、时间、负责人"></label>
+      <label>负责人<input id="deliverableOwner" placeholder="姓名"></label>
+      <div class="dialog-actions">
+        <button class="secondary" type="button" data-close-del>取消</button>
+        <button class="primary" id="saveDeliverable" type="submit" value="default">保存</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Dialog: Save / Edit Knowledge Base Note -->
+  <dialog id="knowledgeDialog" class="wide-dialog" aria-labelledby="knowledgeDialogTitle">
+    <form method="dialog" id="knowledgeForm">
+      <div class="dialog-head">
+        <div>
+          <div class="eyebrow">PERSONAL KNOWLEDGE BASE</div>
+          <h2 id="knowledgeDialogTitle">保存演练复盘到本地知识库</h2>
+        </div>
+        <button class="close" type="button" data-close-kb aria-label="关闭">×</button>
+      </div>
+      <label>复盘标题 *<input id="kbFieldTitle" required placeholder="例如：领导追问项目 ROI 口径时的回答结构"></label>
+      <div class="form-grid-2">
+        <label>适用听众视角
+          <select id="kbFieldAudience">
+            <option value="客户项目负责人">客户项目负责人</option>
+            <option value="公司领导（汇报评审）">公司领导（汇报评审）</option>
+            <option value="技术与安全评审团队">技术与安全评审团队</option>
+            <option value="客户商务与采购负责人">客户商务与采购负责人</option>
+            <option value="通用视角">通用视角</option>
+          </select>
+        </label>
+        <label>分类标签（逗号分隔）<input id="kbFieldTags" placeholder="例如：数据口径, 含税报价, 风险应对"></label>
+      </div>
+      <label>模拟追问原题<textarea id="kbFieldQuestion" rows="2" placeholder="当时对方问了什么问题"></textarea></label>
+      <label>核心复盘结论与下次话术要点 *<textarea id="kbFieldTakeaway" rows="4" required placeholder="记录失分原因、证据位置要求及下次汇报的标准答复要点…"></textarea></label>
+      <div class="dialog-actions">
+        <button class="secondary" type="button" data-close-kb>取消</button>
+        <button class="primary" type="submit" id="saveKnowledgeBtn">保存到本地知识库</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Dialog: Model Settings -->
   <dialog id="settingsDialog" class="model-settings" aria-labelledby="modelSettingsTitle">
-    <form method="dialog" id="modelSettingsForm">
-      <div class="dialog-head"><h2 id="modelSettingsTitle">模型设置</h2><button class="close" id="closeModelSettings" type="button" aria-label="关闭模型设置">×</button></div>
-      <p class="dialog-copy">选择交付质检与文字演练使用的模型。截图识别仍使用本机视觉模型。</p>
+    <form method="dialog" id="modelSettingsForm" novalidate>
+      <div class="dialog-head">
+        <h2 id="modelSettingsTitle">模型设置</h2>
+        <button class="close" id="closeModelSettings" type="button" aria-label="关闭模型设置">×</button>
+      </div>
+      <p class="dialog-copy">选择需求整理、材料质检与演练教练使用的模型。截图 OCR 仍使用本机视觉模型。</p>
       <label for="modelProvider">模型来源</label>
-      <select id="modelProvider"><option value="ollama">本地模型 · Ollama</option><option value="bohrium">API 模型 · 玻尔 Bohrium</option><option value="deepseek">API 模型 · DeepSeek</option><option value="custom">自定义 API</option></select>
+      <select id="modelProvider">
+        <option value="ollama">本地模型 · Ollama</option>
+        <option value="bohrium">API 模型 · 玻尔 Bohrium</option>
+        <option value="deepseek">API 模型 · DeepSeek</option>
+        <option value="custom">自定义 API</option>
+      </select>
       <section id="localModelPanel">
-        <label for="modelName">本地模型名称</label><input id="modelName" placeholder="例如 qwen3-local:4b">
-        <p class="model-help">质检与文字演练内容在本机 Ollama 中处理。</p>
-        <div class="settings-actions"><button class="secondary" id="checkConnection" type="button">检测本地模型</button><span class="connection" id="connectionStatus" role="status">等待检测</span></div>
+        <label for="modelName">本地模型名称</label>
+        <input id="modelName" placeholder="例如 qwen3:4b">
+        <p class="model-help">需求整理、质检与演练内容均在本机 Ollama 中处理，资料不出本机。</p>
+        <div class="settings-actions">
+          <button class="secondary" id="checkConnection" type="button">检测本地模型</button>
+          <span class="connection" id="connectionStatus" role="status">等待检测</span>
+        </div>
       </section>
       <section id="apiModelPanel" hidden>
-        <label for="apiBaseUrl">API 地址</label><input id="apiBaseUrl" readonly value="https://open.bohrium.com/openapi/model-gateway/v1">
-        <label for="apiKey">API 密钥</label><input id="apiKey" type="password" autocomplete="new-password" placeholder="填写玻尔网关密钥" spellcheck="false">
+        <label for="apiBaseUrl">API 地址</label>
+        <input id="apiBaseUrl" readonly value="https://open.bohrium.com/openapi/model-gateway/v1">
+        <label for="apiKey">API 密钥</label>
+        <input id="apiKey" type="password" autocomplete="new-password" placeholder="填写玻尔网关密钥" spellcheck="false">
         <p class="model-help" id="apiKeyStatus">尚未配置密钥。</p>
-        <div class="settings-actions"><button class="secondary" id="refreshApiModels" type="button">读取模型列表</button></div>
-        <label for="apiModelName">API 模型</label><input id="apiModelName" list="apiModelOptions" placeholder="输入名称搜索，或填写完整模型 ID" autocomplete="off"><datalist id="apiModelOptions"></datalist>
+        <div class="settings-actions">
+          <button class="secondary" id="refreshApiModels" type="button">读取模型列表</button>
+        </div>
+        <label for="apiModelName">API 模型</label>
+        <input id="apiModelName" list="apiModelOptions" placeholder="输入名称搜索，或填写完整模型 ID" autocomplete="off">
+        <datalist id="apiModelOptions"></datalist>
         <p class="model-help" id="apiModelsStatus" role="status">配置密钥后读取可见模型，也可直接填写模型 ID。请选择支持文本聊天的模型。</p>
-        <p class="model-disclosure">质检时，需求、检查规范和材料文本将发送至玻尔网关。文字演练会发送项目摘要、材料摘录和近期问答。密钥保存在本机后端。</p>
+        <p class="model-disclosure">质检时，需求、检查规范和材料文本将发送至玻尔网关。演练会发送项目摘要、材料摘录、引用复盘和近期问答。密钥仅保存在本机后端。</p>
       </section>
       <section id="deepseekModelPanel" hidden>
         <label for="deepseekModelName">DeepSeek 模型 ID</label>
         <input id="deepseekModelName" list="deepseekModelOptions" placeholder="deepseek-flash" autocomplete="off" spellcheck="false">
-        <datalist id="deepseekModelOptions"><option value="deepseek-flash"></option><option value="deepseek-v4-pro"></option></datalist>
+        <datalist id="deepseekModelOptions">
+          <option value="deepseek-flash"></option>
+          <option value="deepseek-v4-pro"></option>
+        </datalist>
         <label for="deepseekKey">DeepSeek API 密钥</label>
         <input id="deepseekKey" type="password" autocomplete="new-password" spellcheck="false">
         <p class="model-help" id="deepseekKeyStatus"></p>
-        <p class="model-disclosure">质检和文字演练会将相应的项目文本和问答发送给 DeepSeek。密钥由本机后端保存。</p>
+        <p class="model-disclosure">质检和演练会将相应的项目文本和问答发送给 DeepSeek。密钥仅由本机后端保存。</p>
       </section>
       <section id="customModelPanel" hidden>
         <label for="customBaseUrl">API 基础地址</label>
         <input id="customBaseUrl" type="url" placeholder="https://your-api.example/v1" autocomplete="off" spellcheck="false">
-        <p class="model-help">填写兼容 OpenAI Chat Completions 的服务地址。地址可以包含 /v1 等路径。</p>
+        <p class="model-help">填写兼容 OpenAI Chat Completions 的服务地址，地址可以包含 /v1 等路径。</p>
         <label for="customModelName">模型 ID</label>
         <input id="customModelName" placeholder="填写服务商提供的模型 ID" autocomplete="off" spellcheck="false">
         <label for="customKey">API 密钥（可选）</label>
         <input id="customKey" type="password" autocomplete="new-password" spellcheck="false">
         <p class="model-help" id="customKeyStatus"></p>
-        <p class="model-disclosure">质检和文字演练会把相应的项目文本发送至你填写的地址。</p>
+        <p class="model-disclosure">质检和演练会把相应的项目文本发送至你填写的地址。</p>
       </section>
       <div id="modelSettingsStatus" class="settings-status" role="status" aria-live="polite"></div>
-      <div class="dialog-actions"><button class="secondary" id="cancelModelSettings" type="button">取消</button><button class="primary" value="save" id="saveSettings">保存设置</button></div>
+      <div class="dialog-actions">
+        <button class="secondary" id="cancelModelSettings" type="button">关闭</button>
+        <button class="primary" value="save" id="saveSettings">保存设置</button>
+      </div>
     </form>
   </dialog>
-  <dialog id="deliverableDialog"><form method="dialog" id="deliverableForm"><div class="dialog-head"><div><div class="eyebrow">DELIVERABLE</div><h2>添加交付清单项</h2></div><button class="close" value="cancel">×</button></div><label>交付物名称<input id="deliverableName" required placeholder="例如：上线实施计划"></label><label>验收标准<input id="deliverableStandard" placeholder="例如：含试点范围、时间、负责人"></label><label>负责人<input id="deliverableOwner" placeholder="姓名"></label><div class="dialog-actions"><button class="secondary" value="cancel">取消</button><button class="primary" id="saveDeliverable" value="default">添加</button></div></form></dialog>
+
   <script src="/vendor/marked.js"></script>
   <script src="/vendor/purify.js"></script>
   <script src="/app.js"></script>
   <script src="/model-settings.js"></script>
   <script src="/report-ui.js"></script>
   <script src="/rehearsal-ui.js"></script>
-</body></html>
+</body>
+</html>
