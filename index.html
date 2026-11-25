@@ -1,21 +1,18 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#192d4e"><title>项目交付助手</title>
+  <meta name="theme-color" content="#192d4e"><title>智汇</title>
   <link rel="stylesheet" href="/style.css">
-  <link rel="stylesheet" href="/report.css">
-  <link rel="stylesheet" href="/model-settings.css">
-  <link rel="stylesheet" href="/rehearsal.css">
-</head>
+<link rel="stylesheet" href="/rehearsal.css"></head>
 <body>
   <header class="topbar">
-    <div class="brand"><span class="brand-mark">项</span><span>项目交付助手</span></div>
-    <div class="top-actions"><span id="globalCaptureBadge" class="capture-badge hidden"><i></i>微信监测中</span><span class="privacy" id="privacyNotice">可切换本地 / API 质检模型</span><button class="top-button" id="modelSettings">模型设置</button><span class="avatar">李</span></div>
+    <div class="brand"><span class="brand-mark">Z</span><span>智汇</span></div>
+    <div class="top-actions"><label>当前项目 <select id="projectMenu"></select></label><span id="globalCaptureBadge" class="capture-badge hidden"><i></i>本地监测中</span><span class="privacy"><i></i><span id="analysisMode">模型分析</span></span><button class="top-button" id="modelSettings">模型设置</button><span class="avatar">李</span></div>
   </header>
   <div class="app-layout">
     <aside class="sidebar">
-      <div class="workspace-label">项目工作区</div>
+      <div class="workspace-label">企业工作空间</div>
       <button class="side-link" data-page="projects"><span>▦</span>项目列表</button>
       <div class="sidebar-project"><i></i><span id="sideProjectName">凌云办公协同升级</span></div>
       <button class="side-link sub active" data-page="project"><span>○</span>项目概览</button>
@@ -26,55 +23,39 @@
       <div class="sidebar-bottom">本地项目空间<br><small>v0.2 Demo</small></div>
     </aside>
     <main class="main">
-      <div class="breadcrumb"><span>项目工作区</span><b>/</b><span id="breadcrumbCurrent">项目概览</span></div>
+      <div class="breadcrumb"><span>企业工作空间</span><b>/</b><span id="breadcrumbCurrent">项目概览</span></div>
       <section class="page active" id="page-projects">
-        <div class="page-heading"><div><h1>项目列表</h1><p>打开项目，查看它的需求、材料和交付进度。</p></div><button class="primary" id="newProject">＋ 新增项目</button></div>
-        <div class="filter-row"><input id="projectSearch" placeholder="搜索项目或客户"><select id="projectFilter"><option value="">全部项目</option><option>进行中</option><option>待汇报</option></select><span class="result-count" id="projectResultCount"></span></div>
-        <div class="project-grid" id="projectGrid"></div>
-        <template id="projectCardTemplate">
-          <article class="project-card" data-project-card>
-            <div class="card-top"><div class="project-avatar"></div><span class="project-status"></span></div>
-            <h2></h2><p></p>
-            <div class="card-progress"><div><span>需求确认</span><b data-req-progress></b></div><div class="progress-track"><i></i></div></div>
-            <div class="card-progress"><div><span>材料检查</span><b data-doc-progress></b></div><div class="progress-track blue"><i></i></div></div>
-            <div class="card-footer">
-              <span></span>
-              <div class="project-card-actions">
-                <button class="link-button" type="button" data-open-project>打开项目 →</button>
-                <button class="link-button" type="button" data-rename-project>重命名</button>
-                <button class="link-button" type="button" data-edit-project>编辑</button>
-              </div>
-            </div>
-          </article>
-        </template>
+        <div class="page-heading"><div><h1>工作台</h1><p>为每个客户项目建立独立的需求、交付与汇报空间。</p></div><button class="primary" id="newProject">＋ 新建项目</button></div>
+        <div class="filter-row"><input id="projectSearch" placeholder="搜索项目或客户"><select id="projectFilter"><option>全部项目</option><option>进行中</option><option>待汇报</option></select><span class="result-count">1 个项目</span></div>
+        <div class="project-grid" id="projectGrid"><article class="project-card" data-project-card><div class="card-top"><div class="project-avatar">凌</div><span class="project-status">进行中</span></div><h2 id="cardProjectName">凌云办公协同升级</h2><p id="cardCustomer">客户：联想办公软件团队</p><div class="card-progress"><div><span>需求确认</span><b id="cardReqProgress">0 / 0</b></div><div class="progress-track"><i id="reqProgressBar"></i></div></div><div class="card-progress"><div><span>材料检查</span><b id="cardDocProgress">0 / 0</b></div><div class="progress-track blue"><i id="docProgressBar"></i></div></div><div class="card-footer"><span>负责人：李明</span><button class="link-button" data-page="project">打开项目 →</button></div></article><button class="new-project-card" id="newProjectCard"><span>＋</span><b>创建新项目</b><small>开始整理客户需求与交付任务</small></button></div>
       </section>
       <section class="page" id="page-project">
         <div class="project-title-row"><div><div class="eyebrow">客户项目 <span>/</span> 项目概览</div><h1 id="projectTitle">凌云办公协同升级</h1><p id="projectMeta">客户：联想办公软件团队　·　负责人：李明　·　进行中</p></div><button class="secondary" id="editProject">项目设置</button></div>
         <div class="stepper"><button class="step active" data-page="project"><i>1</i><span>项目与沟通</span></button><b></b><button class="step" data-page="requirements"><i>2</i><span>需求与交付清单</span></button><b></b><button class="step" data-page="materials"><i>3</i><span>上传交付材料</span></button><b></b><button class="step" data-page="quality"><i>4</i><span>质量检查</span></button><b></b><button class="step" data-page="rehearsal"><i>5</i><span>汇报演练</span></button></div>
         <div class="overview-grid">
           <section class="surface"><div class="surface-heading"><div><h2>客户沟通接入</h2><p>导入历史聊天，或连接办公软件持续同步项目消息。</p></div><span class="local-pill"><i></i>仅同步授权项目会话</span></div>
-              <div class="connection-choice"><button class="choice active" data-source="import"><span class="choice-icon">⇧</span><b>导入历史记录</b><small>上传聊天导出文件，整理已有需求</small></button><button class="choice" data-source="screenshot"><span class="choice-icon image-icon">▧</span><b>截图识别</b><small>手动截图，或标注指定应用/群聊</small></button><button class="choice" data-source="bot"><span class="choice-icon bot-icon">◉</span><b>连接聊天机器人</b><small>加入办公软件项目群，持续接收新消息</small><em>需企业管理员配置</em></button></div>
-            <div id="importPanel" class="source-panel"><div class="upload-line"><div><b>项目聊天记录</b><small>支持 TXT / MD / CSV / JSON / Word / PDF / Excel（XLSX），建议包含时间、发言人和内容</small></div><button class="secondary" id="chatPick">选择聊天文件</button><input hidden type="file" id="chatInput" accept=".txt,.md,.csv,.json,.docx,.pdf,.xlsx,text/plain,text/markdown,text/csv,application/json,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></div><div id="chatSummary" class="inline-empty">尚未导入聊天记录</div></div>
-            <div id="screenshotPanel" class="source-panel hidden"><div class="screenshot-config"><div class="capture-modes"><label><input type="radio" name="captureMode" value="manual" checked> 我手动截屏后上传</label><label><input type="radio" name="captureMode" value="targeted"> 自动监测微信窗口</label></div><div id="targetCapture" class="target-capture hidden"><label>微信窗口<select id="wechatWindow"><option value="">点“刷新窗口”查找微信</option></select></label><button class="secondary" id="refreshWechatWindows">刷新窗口</button><label>目标群聊名称<input id="captureRoom" placeholder="请与微信顶部显示的群名一致"></label><label>检查间隔<select id="captureInterval"><option value="15">每 15 秒</option><option value="30">每 30 秒</option><option value="60">每 60 秒</option></select></label><div class="capture-controls"><button class="primary" id="startWechatCapture">开始监测</button><button class="secondary" id="stopWechatCapture" disabled>停止监测</button><span id="captureStatus">尚未开始监测</span></div><div class="capture-disclosure">仅在你点击开始后运行。服务会持续截取所选微信窗口，并用本机视觉模型核对群名；只有匹配且出现新消息时才保存截图并提取消息。关闭本页面不会停止，需点“停止监测”或关闭 Demo 服务。</div><div id="captureEvents" class="capture-events"></div></div><div class="screenshot-upload"><input hidden type="file" id="screenshotInput" accept="image/png,image/jpeg,image/webp"><button class="secondary" id="screenshotPick">选择本地截图</button><span id="screenshotName">支持 PNG / JPG / WEBP · 单张不超过 8 MB</span><button class="primary" id="recognizeScreenshot" disabled>本地识别截图</button></div><div class="ocr-model-row"><label>视觉模型<select id="visionModel"><option value="">检测本机视觉模型中…</option></select></label><button class="text-button" id="refreshVisionModels">刷新模型</button><span>识别与监测仅调用本机 Ollama，不会上传云端。</span></div><div class="vision-help">需安装支持图片输入的视觉模型。若未安装，可运行 <code>ollama pull qwen3-vl:4b</code>；普通文本模型（如 <code>qwen3:4b</code>）无法识图。</div><div id="screenshotResult" class="screenshot-result hidden"></div><button class="text-button demo-screenshot" id="loadScreenshotDemo">载入演示截图识别结果</button><div class="bot-notice">微信自动监测需要微信桌面端处于可见状态。部分使用 GPU 渲染的微信版本可能无法被 Windows 窗口截图接口捕获；请先用手动截图流程验证视觉模型。</div></div></div>
+              <div class="connection-choice"><button class="choice active" data-source="import"><span class="choice-icon">⇧</span><b>上传需求材料</b><small>上传聊天导出文件，整理已有需求</small></button><button class="choice" data-source="screenshot"><span class="choice-icon image-icon">▧</span><b>本地 OCR 截图识别</b><small>手动截图，或标注指定应用/群聊</small></button><button class="choice" data-source="bot"><span class="choice-icon bot-icon">◉</span><b>连接聊天机器人</b><small>加入办公软件项目群，持续接收新消息</small><em>需企业管理员配置</em></button></div>
+            <div id="importPanel" class="source-panel"><div class="upload-line"><div><b>需求文档与会议材料</b><small>支持 TXT / MD / CSV / JSON / Word / PDF / Excel（XLSX），建议包含时间、发言人和内容</small></div><button class="secondary" id="meetingPick">转写会议录音</button><input type="file" id="meetingAudio" accept="audio/*,.m4a,.mp3,.wav,.webm" hidden><span id="meetingProgress" role="status"></span><button class="secondary" id="chatPick">上传其他材料</button><input hidden type="file" multiple id="chatInput" accept=".txt,.md,.csv,.json,.docx,.pdf,.xlsx,text/plain,text/markdown,text/csv,application/json,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></div><div class="upload-line"><div><b>会议纪要与转录稿</b><small>上传 Teams 导出的 VTT 字幕，或 TXT、DOCX、PDF 纪要</small></div><button class="secondary" id="meetingPick">上传会议材料</button><input hidden multiple type="file" id="meetingInput" accept=".vtt,.txt,.docx,.pdf"></div><div id="chatSummary" class="inline-empty">尚未导入聊天记录</div></div>
+            <div id="screenshotPanel" class="source-panel hidden"><div class="screenshot-config"><div class="capture-modes"><label><input type="radio" name="captureMode" value="manual" checked> 我手动截屏后上传</label><label><input type="radio" name="captureMode" value="targeted"> 自动监测微信 / Teams</label></div><div id="targetCapture" class="target-capture hidden"><label>目标应用窗口<select id="wechatWindow"><option value="">点“刷新窗口”查找微信或 Teams</option></select></label><button class="secondary" id="refreshWechatWindows">刷新窗口</button><label>目标群聊或会话名称<input id="captureRoom" placeholder="填写窗口当前打开的群名/聊天名"></label><label>检查间隔<select id="captureInterval"><option value="15">每 15 秒</option><option value="30">每 30 秒</option><option value="60">每 60 秒</option></select></label><div class="capture-controls"><button class="primary" id="startWechatCapture">开始监测</button><button class="secondary" id="stopWechatCapture" disabled>停止监测</button><span id="captureStatus">尚未开始监测</span></div></div><section class="capture-progress"><strong>本项目截图</strong><p id="frameTotals" aria-live="polite">已截图 0 张 · 已识别 0 张 · 已提取需求 0 条</p></section><div id="captureEvents" class="capture-events"></div><div class="screenshot-upload"><input hidden type="file" id="screenshotInput" accept="image/png,image/jpeg,image/webp"><button class="secondary" id="screenshotPick">选择本地截图</button><span id="screenshotName">支持 PNG / JPG / WEBP · 单张不超过 8 MB</span><button class="primary" id="recognizeScreenshot" disabled>本地识别截图</button></div><div class="ocr-model-row"><label>需求分析模型<select id="visionModel"><option value="">检测本机分析模型中…</option></select></label><button class="text-button" id="refreshVisionModels">刷新模型</button><span>OCR 原文保存在本机，按需分析客户要求。</span></div><div id="screenshotResult" class="screenshot-result hidden"></div><button class="text-button demo-screenshot" id="loadScreenshotDemo">载入演示截图识别结果</button></div></div>
             <div id="botPanel" class="source-panel hidden"><div class="bot-config"><label>办公软件<select id="botPlatform"><option>联想企业办公（演示连接器）</option><option>企业微信（待接入）</option><option>飞书（待接入）</option><option>钉钉（待接入）</option></select></label><label>项目群<select id="botRoom"><option>凌云办公协同升级项目群</option><option>凌云办公产品评审群</option></select></label><label>同步范围<select id="botScope"><option>从现在开始同步新消息</option><option>同步最近 30 天消息</option></select></label><div class="bot-config-actions"><button class="secondary" id="connectBot">模拟授权并连接</button><span class="permission-note">仅同步所选项目群；连接动作不会访问真实办公软件。</span></div></div><div class="bot-connection hidden" id="botConnection"><div class="bot-connect"><div class="bot-state"><span class="bot-state-icon connected">✓</span><div><b id="botStatus">机器人已连接</b><small id="botDetail">授权范围：凌云办公协同升级项目群</small></div></div><span class="sync-state"><i></i>实时同步中</span></div><div class="bot-stream-head"><b>最近接收的消息</b><button class="text-button" id="simulateIncoming">＋ 模拟新消息</button></div><div id="botMessages" class="bot-messages"><div class="bot-empty">连接后，项目群新消息会显示在这里。</div></div><div class="bot-notice">演示连接器：以下消息由 Demo 模拟，不会实际加入办公软件群或读取真实聊天。</div></div></div>
           </section>
           <section class="surface next-surface"><div class="surface-heading"><div><h2>项目推进</h2><p>从客户要求到汇报准备，逐步完成项目闭环。</p></div></div><div class="progress-list"><button data-page="requirements"><span class="progress-icon">01</span><span><b>确认需求并生成交付清单</b><small id="overviewReqText">等待导入聊天记录</small></span><strong>→</strong></button><button data-page="materials"><span class="progress-icon blue">02</span><span><b>上传交付文档、图片和视频</b><small id="overviewDocText">添加材料并关联清单项</small></span><strong>→</strong></button><button data-page="quality"><span class="progress-icon orange">03</span><span><b>检查材料质量和需求覆盖</b><small>依据项目规范生成问题与修改建议</small></span><strong>→</strong></button><button data-page="rehearsal"><span class="progress-icon purple">04</span><span><b>模拟汇报、提问与反馈</b><small>练习讲解并准备客户或领导追问</small></span><strong>→</strong></button></div></section>
         </div>
         <section class="surface spec-surface"><div class="surface-heading"><div><h2>项目检查规范</h2><p>导入 PRD 或输入汇报逻辑、内容完整性和数据核验要求。</p></div><span class="optional-label">可随时补充</span></div><textarea id="rules" placeholder="例如：汇报需包含客户痛点、解决方案、上线计划和风险；所有数据需标明来源和统计口径。"></textarea><div class="spec-footer"><span>规范将用于交付材料检查和模拟汇报反馈</span><button class="text-button" id="saveRules">保存规范</button></div></section><div class="flow-actions"><span>项目与沟通完成后，继续确认客户需求。</span><button class="primary" data-next="requirements">下一步：需求与交付清单 →</button></div>
       </section>
-      <section class="page" id="page-requirements"><div class="page-heading"><div><div class="eyebrow" id="requirementsProjectName">凌云办公协同升级</div><h1>需求与交付清单</h1><p>从客户沟通提取要求，逐条确认后转成交付任务。</p></div><button class="primary" id="extractBtn">✳ 识别聊天需求</button></div><div class="two-column"><section class="surface"><div class="surface-heading"><div><h2>需求候选 <span class="count-chip" id="reqCount">0</span></h2><p>保留原始消息来源，确认后再纳入项目基线。</p></div><button class="text-button" id="loadSample">载入演示项目</button></div><div id="requirementsList" class="empty-state"><div class="empty-symbol">☷</div><b>还没有需求候选</b><span>先导入聊天记录，或载入演示项目查看完整流程。</span></div></section><section class="surface"><div class="surface-heading"><div><h2>交付清单 <span class="count-chip" id="deliverableCount">0</span></h2><p>将确认的需求整理成可执行、可验收的交付项。</p></div><button class="secondary" id="addDeliverable">＋ 添加清单项</button></div><div id="deliverablesList" class="empty-state compact"><div class="empty-symbol">☑</div><b>确认需求后生成交付清单</b><span>可设置交付物、负责人、截止时间和验收标准。</span></div></section></div><div class="flow-actions"><span>需求确认后上传对应交付文档、图片或视频。</span><button class="primary" data-next="materials">下一步：上传交付材料 →</button></div></section>
+      <section class="page" id="page-requirements"><div class="page-heading"><div><div class="eyebrow">凌云办公协同升级</div><h1>需求与交付清单</h1><p>从客户沟通提取要求，逐条确认后转成交付任务。</p></div><button class="primary" id="extractBtn">分析客户需求</button></div><div class="two-column"><section class="surface"><div class="surface-heading"><div><h2>需求候选 <span class="count-chip" id="reqCount">0</span></h2></div><button class="text-button" id="loadSample">载入演示项目</button></div><div id="candidateRows" tabindex="0" aria-label="候选原文"></div><div class="summary-head"><h3>客户需求汇总</h3><button id="confirmAll" class="secondary">一键确认全部</button></div><p id="summaryStatus" role="status"></p><div id="requirementsList" class="empty-state"><div class="empty-symbol">☷</div><b>还没有需求候选</b><span>先导入聊天记录，或载入演示项目查看完整流程。</span></div></section><section class="surface"><div class="surface-heading"><div><h2>交付清单 <span class="count-chip" id="deliverableCount">0</span></h2><p>将确认的需求整理成可执行、可验收的交付项。</p></div><button class="secondary" id="addDeliverable">＋ 添加清单项</button></div><div id="deliverablesList" class="empty-state compact"><div class="empty-symbol">☑</div><b>确认需求后生成交付清单</b><span>可设置交付物、负责人、截止时间和验收标准。</span></div></section></div><div class="flow-actions"><span>需求确认后上传对应交付文档、图片或视频。</span><button class="primary" data-next="materials">下一步：上传交付材料 →</button></div></section>
       <section class="page" id="page-materials"><div class="page-heading"><div><div class="eyebrow">项目交付</div><h1>交付材料</h1><p>上传销售或产品准备的文档、图片和视频，并关联对应清单项。</p></div><button class="primary" id="docPick">＋ 上传材料</button><input hidden type="file" id="docInput" multiple accept=".txt,.md,.csv,.png,.jpg,.jpeg,.webp,.mp4,.webm,.pdf,.docx,.xlsx"></div><div class="surface material-toolbar"><div class="filter-pills"><button class="filter-pill active">全部材料 <span id="materialCount">0</span></button><button class="filter-pill">待检查</button><button class="filter-pill">已检查</button></div><span class="supported">文档 · 图片 · 视频　|　文本质检支持 TXT / MD / CSV / DOCX / PDF / Excel（XLSX）</span></div><div id="materialsList" class="material-grid"><div class="empty-state wide"><div class="empty-symbol">▤</div><b>还没有上传交付材料</b><span>上传文件后，为材料关联清单项并运行质量检查。</span><button class="secondary" id="emptyUpload">选择项目文件</button></div></div><div class="flow-actions"><span>材料上传完成后，运行项目级质量检查。</span><button class="primary" data-next="quality">下一步：质量检查 →</button></div></section>
-      <section class="page" id="page-quality"><div class="page-heading"><div><h1>质量检查</h1><p>对照确认后的客户需求、交付清单和项目规范检查材料。</p></div><button class="primary" id="runReview">运行项目检查 →</button></div><div class="quality-summary"><div><b id="qualityReqs">0</b><span>确认需求</span></div><div><b id="qualityDocs">0</b><span>项目材料</span></div><div><b id="qualityIssues">待运行</b><span>待补充检查点</span></div><div><b id="qualityModel">本地模型</b><span>检查方式</span></div></div><section class="surface report-surface"><div class="surface-heading"><div><h2>检查结果</h2><p>每条问题显示关联需求、材料证据和修改建议。</p></div><span class="local-pill" id="reviewProviderBadge">调用本机 Ollama</span></div><div id="report" class="empty-state"><div class="empty-symbol">✓</div><b>准备好材料后运行检查</b><span>逐条展示核验结论、材料原文和待确认项。</span></div></section><div class="flow-actions"><span>检查完成后，进入汇报演练准备讲解和答疑。</span><button class="primary" data-next="rehearsal">下一步：汇报演练 →</button></div></section>
+      <section class="page" id="page-quality"><div class="page-heading"><div><div class="eyebrow">交付质检</div><h1>质量检查</h1><p>对照确认后的客户需求、交付清单和项目规范检查材料。</p></div><button class="primary" id="runReview">运行项目检查 →</button></div><div class="quality-summary"><div><b id="qualityReqs">0</b><span>确认需求</span></div><div><b id="qualityDocs">0</b><span>项目材料</span></div><div><b id="qualityIssues">待运行</b><span>检查问题</span></div><div><b id="qualityModel">待检查</b><span>检查方式</span></div></div><details class="surface knowledge-panel"><summary>参考知识库 · 材料交付与汇报质量检查</summary><div id="knowledgeContents"></div><h3>本项目交付前自检 <span id="knowledgeCount"></span></h3><div id="knowledgeChecks"></div></details><section class="surface report-surface"><div class="surface-heading"><div><h2>检查结果</h2><p>每条问题显示关联需求、材料证据和修改建议。</p></div><span class="local-pill"><i></i>调用所选模型</span></div><div id="report" class="empty-state"><div class="empty-symbol">✓</div><b>准备好材料后运行检查</b><span>检查结果会按问题严重程度和交付项排列。</span></div></section><div class="flow-actions"><span>检查完成后，进入汇报演练准备讲解和答疑。</span><button class="primary" data-next="rehearsal">下一步：汇报演练 →</button></div></section>
       <section class="page" id="page-rehearsal">
         <div class="page-heading"><div><h1>模拟汇报与问答</h1><p>先讲清结论，再用项目证据回应追问。</p></div><span class="local-pill">本机语音识别 · 自动朗读反馈</span></div>
         <div class="rehearsal-grid">
           <section class="surface rehearsal-setup">
             <div class="surface-heading"><div><h2>演练设置</h2><p>选择听众和重点，围绕当前项目练习。</p></div></div>
             <label>模拟听众<select id="audience"><option>客户项目负责人</option><option>公司领导</option><option>技术评审团队</option></select></label>
-            <label>练习时长<select id="duration"><option value="5">5 分钟</option><option value="10">10 分钟</option><option value="15">15 分钟</option></select></label>
+            <label>练习时长<input id="duration" type="number" min="1" max="240" step="1" value="5"> 分钟</label>
             <label>本次重点<textarea id="rehearsalFocus" maxlength="1000" placeholder="例如：数据口径、上线安排与安全保障。"></textarea></label>
             <div class="rehearsal-actions"><button class="primary" id="micButton">开始语音演练</button><button class="secondary" id="finishVoiceTurn" disabled>说完了，立即回复</button><button class="secondary" id="startRehearsal">开始文字演练</button></div>
-            <div class="voice-panel"><p id="voiceStatus" role="status" aria-live="polite">点击开始后请求麦克风权限，首次加载中文模型约42 MB。</p><meter id="voiceLevel" min="0" max="1" value="0" aria-label="音频输入音量"></meter></div>
+            <div class="voice-panel"><p id="voiceStatus" role="status" aria-live="polite">开启麦克风后，停顿约一秒提交本轮发言。</p><meter id="voiceLevel" min="0" max="1" value="0" aria-label="音频输入音量"></meter></div>
           </section>
           <section class="surface coach-surface">
             <div class="coach-head"><div class="coach-avatar">AI</div><div><b>汇报教练</b><small id="coachModel">使用模型设置中的语言模型</small></div><span class="coach-live" role="status">待开始</span></div>
@@ -87,55 +68,23 @@
         </div>
         <section class="surface feedback-surface"><div class="surface-heading"><div><h2>本轮反馈</h2><p>评估回答结构与证据；不根据转写文字判断语速、发音或情绪。</p></div></div><div id="feedback" class="feedback-placeholder">发送第一轮回答后，显示优势、具体修改建议与材料引用。</div></section>
       </section>
-      <footer><span>项目交付助手 · Demo v0.2</span><span id="processingNotice">模型来源决定质检数据的处理位置 · 外部聊天平台连接当前为演示状态</span></footer>
+      <footer><span>智汇 · Demo v0.2</span><span>截图与 OCR 在本机处理 · 外部聊天平台连接当前为演示状态</span></footer>
     </main>
   </div>
-  <dialog id="projectDialog" aria-labelledby="projectDialogTitle">
-    <form method="dialog" id="projectForm">
-      <div class="dialog-head"><h2 id="projectDialogTitle">新增项目</h2><button class="close" type="button" data-close-project aria-label="关闭">×</button></div>
-      <label>项目名称<input id="projectNameInput" required pattern=".*\S.*" autofocus></label>
-      <div id="projectDetailsFields">
-        <label>客户名称<input id="projectCustomerInput" placeholder="例如：某某企业"></label>
-        <label>项目负责人<input id="projectOwnerInput" placeholder="姓名"></label>
-      </div>
-      <p id="projectFormError" role="alert" class="dialog-copy" hidden></p>
-      <div class="dialog-actions"><button class="secondary" type="button" data-close-project>取消</button><button class="primary" type="submit" id="saveProject">保存</button></div>
-    </form>
-  </dialog>
-  <dialog id="settingsDialog" class="model-settings" aria-labelledby="modelSettingsTitle">
-    <form method="dialog" id="modelSettingsForm">
-      <div class="dialog-head"><h2 id="modelSettingsTitle">模型设置</h2><button class="close" id="closeModelSettings" type="button" aria-label="关闭模型设置">×</button></div>
-      <p class="dialog-copy">选择交付质检与汇报演练使用的模型。截图识别仍使用本机视觉模型。</p>
-      <label for="modelProvider">模型来源</label>
-      <select id="modelProvider"><option value="ollama">本地模型 · Ollama</option><option value="custom">自定义 API</option></select>
-      <section id="localModelPanel">
-        <label for="modelName">本地模型名称</label><input id="modelName" placeholder="例如 qwen3-local:4b">
-        <p class="model-help">质检与汇报演练内容在本机 Ollama 中处理。</p>
-        <div class="settings-actions"><button class="secondary" id="checkConnection" type="button">检测本地模型</button><span class="connection" id="connectionStatus" role="status">等待检测</span></div>
-      </section>
-      <section id="customModelPanel" hidden>
-        <label for="customBaseUrl">API 基础地址</label>
-        <input id="customBaseUrl" type="url" placeholder="https://your-api.example/v1" autocomplete="off" spellcheck="false">
-        <p class="model-help">填写兼容 OpenAI Chat Completions 的服务地址。地址可以包含 /v1 等路径。</p>
-        <label for="customModelName">模型 ID</label>
-        <input id="customModelName" list="apiModelOptions" placeholder="填写或选择模型 ID" autocomplete="off" spellcheck="false"><datalist id="apiModelOptions"></datalist>
-        <div class="settings-actions"><button class="secondary" id="refreshApiModels" type="button">读取模型列表</button></div>
-        <p class="model-help" id="apiModelsStatus" role="status">填写服务地址后可读取模型列表；服务不支持时，直接填写模型 ID。</p>
-        <label for="customKey">API 密钥（可选）</label>
-        <input id="customKey" type="password" autocomplete="new-password" spellcheck="false">
-        <p class="model-help" id="customKeyStatus"></p>
-        <p class="model-disclosure">质检和演练文字发送至填写的 API 地址。密钥仅保存在本机后端，音频仅在本机识别。</p>
-      </section>
-      <div id="modelSettingsStatus" class="settings-status" role="status" aria-live="polite"></div>
-      <div class="dialog-actions"><button class="secondary" id="cancelModelSettings" type="button">取消</button><button class="primary" value="save" id="saveSettings">保存设置</button></div>
-    </form>
-  </dialog>
+  <dialog id="projectDialog"><form method="dialog" id="projectForm"><div class="dialog-head"><div><div class="eyebrow">NEW PROJECT</div><h2>创建新项目</h2></div><button class="close" value="cancel">×</button></div><p class="dialog-copy">创建独立的项目空间，再选择历史聊天导入或办公软件机器人接入。</p><label>项目名称<input id="newName" required placeholder="例如：客户协同平台升级"></label><label>客户名称<input id="newCustomer" placeholder="例如：某某企业"></label><label>项目负责人<input id="newOwner" placeholder="姓名"></label><label>项目周期<input id="newDeadline" type="date"></label><div class="dialog-actions"><button class="secondary" value="cancel">取消</button><button class="primary" id="createProject" value="default">创建项目</button></div></form></dialog>
+  <dialog id="settingsDialog"><form method="dialog"><div class="dialog-head"><h2>模型设置</h2><button class="close" value="cancel">×</button></div>
+<label>分析方式<select id="providerMode"><option value="local">本机 Ollama</option><option value="api">模型 API（TokenDance 等）</option></select></label>
+<label><input type="checkbox" id="localSpeech" checked> 使用本地 Whisper 转写</label><div id="remoteFields" hidden><p>分析时发送相关项目文字，转写时发送所选音频到同一 API 地址。截图和 OCR 在本机处理。</p>
+<label>API 基础地址<input id="providerUrl" placeholder="https://tokendance.space/gateway/v1"></label>
+<label>模型 ID<input id="providerModel" placeholder="填写服务商提供的模型 ID"></label>
+<label>语音转写模型 ID<input id="asrModel" placeholder="deepseek-asr"></label><label>API Key<input type="password" id="providerKey" autocomplete="new-password"></label></div>
+<label id="localFields">Ollama 模型<input id="modelName"></label><p role="status" id="connectionStatus"></p>
+<div class="dialog-actions"><button class="secondary" id="checkConnection" type="button">保存并测试连接</button><button type="button" class="primary" id="saveSettings">保存设置</button></div></form></dialog>
   <dialog id="deliverableDialog"><form method="dialog" id="deliverableForm"><div class="dialog-head"><div><div class="eyebrow">DELIVERABLE</div><h2>添加交付清单项</h2></div><button class="close" value="cancel">×</button></div><label>交付物名称<input id="deliverableName" required placeholder="例如：上线实施计划"></label><label>验收标准<input id="deliverableStandard" placeholder="例如：含试点范围、时间、负责人"></label><label>负责人<input id="deliverableOwner" placeholder="姓名"></label><div class="dialog-actions"><button class="secondary" value="cancel">取消</button><button class="primary" id="saveDeliverable" value="default">添加</button></div></form></dialog>
-  <script src="/vendor/marked.js"></script>
-  <script src="/vendor/purify.js"></script>
-  <script src="/app.js"></script>
-  <script src="/model-settings.js"></script>
-  <script src="/report-ui.js"></script>
-  <script src="/speech-engine.js"></script>
-  <script src="/rehearsal-ui.js"></script>
+  <script src="/delivery-knowledge.js"></script><script src="/app.js"></script><script src="/speech-engine.js"></script><script src="/rehearsal-ui.js"></script>
 </body></html>
+
+
+
+
+

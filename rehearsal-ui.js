@@ -2,7 +2,7 @@
   const el = id => document.getElementById(id);
   const page = el('page-rehearsal'), input = el('answerInput');
   const projectSessions = new Map();
-  let projectId = typeof activeProject === 'undefined' ? 'default' : activeProject.id;
+  let projectId = captureProject();
   const initialConversation = el('conversation').innerHTML, initialFeedback = el('feedback').innerHTML;
   let active = false, paused = false, phase = 'idle', remaining = 300, lastTick = Date.now(), history = [], turns = 0, session = 0, request, question = '', context;
   let voiceTurn = null, voiceText = '', partialText = '', lastSpeechAt = 0;
@@ -25,7 +25,7 @@
   function message(role, text) { const node = document.createElement('div'); node.className = role === 'user' ? 'user-message' : 'coach-message'; node.textContent = text; el('conversation').append(node); el('conversation').scrollTop = el('conversation').scrollHeight; }
   function begin() {
     if (active) { paused = false; lastTick = Date.now(); controls(); return; }
-    session++; active = true; paused = false; remaining = Number(el('duration').value) * 60; lastTick = Date.now(); turns = 0; history = []; timeNotified = false; voiceTurn = null; voiceText = partialText = '';
+    if(!el('duration').checkValidity()||!el('duration').value){el('duration').value='5'} session++; active = true; paused = false; remaining = Number(el('duration').value) * 60; lastTick = Date.now(); turns = 0; history = []; timeNotified = false; voiceTurn = null; voiceText = partialText = '';
     const project = typeof activeProject === 'undefined' ? { ...state.project, requirements: state.requirements, docs: state.docs } : activeProject;
     context = { project: { name: project.name, customer: project.customer }, requirements: structuredClone(project.requirements), documents: structuredClone(project.docs), rules: el('rules').value, audience: el('audience').value, durationMinutes: Number(el('duration').value), focus: el('rehearsalFocus').value };
     question = `请面向${context.audience}，介绍“${context.project.name}”的进展、交付依据和下一步计划。${context.focus ? '本次重点：' + context.focus : ''}`;
@@ -47,7 +47,7 @@
   }
   function markVoice(turn, label, retry = false) {
     if (!turn) return;
-    if (turn.asrPending) { turn.state = 'unverified'; turn.meta.textContent = '语音核准未完成，请重新说这段发言'; turn.button.hidden = true; return; }
+    if (turn.asrPending || turn.answer==='正在听…') { turn.state = 'unverified'; turn.meta.textContent = '语音核准未完成，请重新说这段发言'; turn.button.hidden = true; return; }
     turn.state = retry ? 'pending' : 'sent'; turn.meta.textContent = label; turn.button.hidden = !retry;
     turn.button.textContent = '让教练回复这段话';
     turn.button.onclick = () => {
@@ -60,7 +60,7 @@
     partial(text) { if (text !== partialText && text) lastSpeechAt = Date.now(); partialText = text; showVoice(); },
     level(value) { el('voiceLevel').value = value; if (micOn && !ttsActive && value > 0.12) lastSpeechAt = Date.now(); },
     terms() { return [context?.project.name, context?.project.customer, '任务按时完成率，跨部门协作时长，统计口径，移动端审批，本地部署，数据安全，管理员操作手册，员工快速上手指南'].filter(Boolean).join('，').slice(0,240); },
-    refining() { if (voiceTurn) { voiceTurn.asrPending = true; voiceTurn.meta.textContent = '本机高精度识别正在核准这段发言…'; } },
+    refining() { if (voiceTurn) { voiceTurn.asrPending = true; voiceTurn.meta.textContent = '正在转写本轮发言…'; } },
     limit() { if (micOn) finishVoiceTurn(); },
     boundary() {
       if (voiceTurn && !voiceTurn.answer) voiceTurn.node.remove();
@@ -94,7 +94,7 @@
   async function record() {
     if (micOn || phase === 'preparing') return stopMicrophone();
     if (phase === 'transcribing' || phase === 'sending') return status('请等当前音频或回复完成后再开启录音。');
-    begin(); stopSpeech(); voiceTurn = null; voiceText = partialText = ''; lastSpeechAt = Date.now(); phase = 'preparing'; const id = session, token = ++captureToken; controls(); status('正在加载本地中文识别模型，随后请求麦克风权限…');
+    begin(); stopSpeech(); voiceTurn = null; voiceText = partialText = ''; lastSpeechAt = Date.now(); phase = 'preparing'; const id = session, token = ++captureToken; controls(); status('正在准备语音识别和麦克风…');
     try { if (await speech.start() && id === session && token === captureToken) { micOn = true; phase = 'listening'; if (el('autoRead').checked) read(); status('麦克风持续开启 · 停顿约1秒后自动回复，回复后直接接着说。'); controls(); } }
     catch (error) { if (id === session && token === captureToken) audioError(error); }
   }
@@ -119,8 +119,8 @@
     if (turn) { turn.state = 'sending'; turn.meta.textContent = '已发送 · 教练正在回复'; turn.button.hidden = true; }
     const id = session; phase = 'sending'; request = new AbortController(); controls(); stopSpeech(); status(micOn ? '麦克风持续开启 · 教练正在回复，你可以继续补充。' : '教练正在回复…');
     try {
-      const selected = await ModelSettings.selection(); if (id !== session) return;
-      el('coachModel').textContent = `${ModelSettings.providerLabel?.(selected.provider) || (selected.provider === 'ollama' ? '本地' : 'API')} · ${selected.model}`;
+      const settings=await readProvider(); const selected={provider:settings.mode==="api"?"api":"ollama",model:settings.mode==="api"?settings.model:state.model}; if (id !== session) return;
+      el('coachModel').textContent = `${(selected.provider === 'ollama' ? '本地' : 'API')} · ${selected.model}`;
       const response = await fetch('/api/rehearsal', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ ...context, ...selected, history, answer }), signal: request.signal });
       const result = await response.json(); if (id !== session) return; if (!response.ok) throw new Error(result.error || '教练请求失败');
       if (!result || typeof result.question !== 'string' || !result.question.trim() || typeof result.summary !== 'string' || !['strengths','improvements','evidence','warnings'].every(key => Array.isArray(result[key]))) throw new Error(result?.error || '教练反馈不完整，请重试');
@@ -155,7 +155,7 @@
   setInterval(() => { if (active && !paused) { const elapsed = Math.floor((Date.now() - lastTick)/1000); remaining = Math.max(0,remaining-elapsed); lastTick += elapsed*1000; if (!remaining && !timeNotified) { timeNotified = true; status(micOn ? '练习时间已到，麦克风仍开启。可继续演练或主动停止录音。' : '练习时间已到，可继续回答或结束演练。'); } controls(); voices(); } },1000);
   new MutationObserver(() => { if (!page.classList.contains('active') && active && !paused) interrupt('已离开演练页，练习自动暂停；返回后可继续。'); }).observe(page, {attributes:true,attributeFilter:['class']});
   window.addEventListener('project-changed', () => {
-    const nextId = typeof activeProject === 'undefined' ? 'default' : activeProject.id;
+    const nextId = captureProject();
     if (nextId === projectId) return;
     interrupt('已切换项目，当前演练已暂停。');
     projectSessions.set(projectId, { nodes: [...el('conversation').childNodes], feedback: el('feedback').innerHTML,
