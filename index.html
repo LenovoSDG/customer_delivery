@@ -13,20 +13,20 @@
   <div class="app-layout">
     <aside class="sidebar">
       <div class="workspace-label">企业工作空间</div>
-      <button class="side-link" data-page="projects"><span>▦</span>项目列表</button>
+      <button class="side-link" data-page="projects"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>项目列表</button>
       <div class="sidebar-project"><i></i><span id="sideProjectName">凌云办公协同升级</span></div>
-      <button class="side-link sub active" data-page="project"><span>○</span>项目概览</button>
-      <button class="side-link sub" data-page="requirements"><span>○</span>需求与清单</button>
-      <button class="side-link sub" data-page="materials"><span>○</span>交付材料</button>
-      <button class="side-link sub" data-page="quality"><span>○</span>质量检查</button>
-      <button class="side-link sub" data-page="rehearsal"><span>○</span>汇报演练</button>
+      <button class="side-link sub active" data-page="project"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z"/></svg>项目概览</button>
+      <button class="side-link sub" data-page="requirements"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V2h6v2M9 10h6M9 15h6"/></svg>需求与清单</button>
+      <button class="side-link sub" data-page="materials"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>交付材料</button>
+      <button class="side-link sub" data-page="quality"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6Z"/><path d="m8 12 3 3 5-6"/></svg>质量检查</button>
+      <button class="side-link sub" data-page="rehearsal"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="m9 21 3-4 3 4M8 9h8M8 12h5"/></svg>汇报演练</button>
       <div class="sidebar-bottom">本地项目空间<br><small>v1.14</small></div>
     </aside>
     <main class="main">
       <div class="breadcrumb"><span>企业工作空间</span><b>/</b><span id="breadcrumbCurrent">项目概览</span></div>
       <section class="page active" id="page-projects">
         <div class="page-heading"><div><h1>工作台</h1><p>为每个客户项目建立独立的需求、交付与汇报空间。</p></div><button class="primary" id="newProject">＋ 新建项目</button></div>
-        <div class="filter-row"><input id="projectSearch" placeholder="搜索项目或客户"><select id="projectFilter"><option>全部项目</option><option>待核对需求</option><option>待检查材料</option><option>已完成检查</option></select><span class="result-count">1 个项目</span></div>
+        <div class="filter-row"><input id="projectSearch" aria-label="搜索项目或客户" placeholder="搜索项目或客户"><select id="projectFilter" aria-label="按项目阶段筛选"><option>全部项目</option><option>待核对需求</option><option>待检查材料</option><option>已完成检查</option></select><span class="result-count">1 个项目</span></div>
         <div class="project-grid" id="projectGrid"><article class="project-card" data-project-card><div class="card-top"><div class="project-avatar">凌</div><span class="project-status">进行中</span></div><h2 id="cardProjectName">凌云办公协同升级</h2><p id="cardCustomer">客户：联想办公软件团队</p><div class="card-progress"><div><span>需求确认</span><b id="cardReqProgress">0 / 0</b></div><div class="progress-track"><i id="reqProgressBar"></i></div></div><div class="card-progress"><div><span>材料检查</span><b id="cardDocProgress">0 / 0</b></div><div class="progress-track blue"><i id="docProgressBar"></i></div></div><div class="card-footer"><span>负责人：李明</span><button class="link-button" data-page="project">打开项目 →</button></div></article><button class="new-project-card" id="newProjectCard"><span>＋</span><b>创建新项目</b><small>开始整理客户需求与交付任务</small></button></div>
       </section>
       <section class="page" id="page-project">

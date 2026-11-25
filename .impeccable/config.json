@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "index.html"
+        ],
+        "createdAt": "2026-11-25T09:16:39.149Z",
+        "reason": "Agent: the only current finding is .filter-row. Browser-computed border is 0px none and background is transparent; the static detector incorrectly retains a legacy border. No bordered or colored container exists at that location."
+      }
+    ]
+  }
+}
