@@ -132,3 +132,20 @@ test('interactive GLM coaching disables reasoning and bounds output without chan
   await gateway.ask('glm-5.2','s','c',{}, {interactive:true});await gateway.ask('glm-5.2','s','c',{});await gateway.ask('glm-5.3','s','c',{}, {interactive:true});await gateway.ask('other-model','s','c',{}, {interactive:true});
   assert.deepEqual(bodies[0].thinking,{type:'disabled'});assert.equal(bodies[0].max_tokens,1200);assert.equal(bodies[1].thinking,undefined);assert.equal(bodies[1].max_tokens,undefined);assert.equal(bodies[2].thinking,undefined);assert.equal(bodies[3].thinking,undefined);
 });
+
+test('legacy active API settings migrate to the generic slot and survive save/reload without re-entering a key', async t => {
+  for (const [provider,baseUrl,modelName,keyName] of [['bohrium',BASE_URL,'BOHRIUM_MODEL','BOHRIUM_API_KEY'],['deepseek','https://api.deepseek.com','DEEPSEEK_MODEL','DEEPSEEK_API_KEY']]) {
+    const {file}=setup(t);fs.writeFileSync(file,`MODEL_PROVIDER=${provider}\nLOCAL_MODEL=local:4b\n${modelName}=legacy-model\n${keyName}=test-legacy-key\n`,{mode:0o600});
+    let last;const fetchImpl=async(url,options)=>{last={url,key:options.headers.authorization};return Response.json({choices:[{message:{content:'{"ok":true}'}}]});};
+    const migrated=createModelGateway({configFile:file,env:{},fetchImpl});const config=migrated.publicConfig();
+    assert.equal(config.provider,'custom');assert.equal(config.customBaseUrl,baseUrl);assert.equal(config.customModel,'legacy-model');assert.equal(config.customKeyConfigured,true);assert.doesNotMatch(JSON.stringify(config),/test-legacy-key/);
+    migrated.saveConfig({provider:'custom',customBaseUrl:baseUrl,customModel:'updated-model'});migrated.saveConfig({provider:'ollama',localModel:'local:4b'});
+    const reloaded=createModelGateway({configFile:file,env:{},fetchImpl});await reloaded.createChat('custom')('s','c',{});assert.equal(last.url,baseUrl+'/chat/completions');assert.equal(last.key,'Bearer test-legacy-key');assert.equal(reloaded.publicConfig().customModel,'updated-model');
+  }
+});
+test('generic catalog lookup only reuses a stored secret for its matching address',async t=>{
+  const seen=[];const {gateway,file}=setup(t,async(url,options)=>{seen.push({url,key:options.headers.authorization});return Response.json({data:[{id:'model-z'},{id:'model-a'}]});});
+  gateway.saveConfig({provider:'custom',customBaseUrl:'https://saved.example/v1',customModel:'chat',customKey:'test-saved-key'});
+  const before=fs.readFileSync(file,'utf8');await gateway.listModels({customBaseUrl:'https://saved.example/v1/chat/completions'});await gateway.listModels({customBaseUrl:'https://new.example/v1'});const result=await gateway.listModels({customBaseUrl:'https://new.example/v1',customKey:'test-draft-key'});
+  assert.deepEqual(seen,[{url:'https://saved.example/v1/models',key:'Bearer test-saved-key'},{url:'https://new.example/v1/models',key:undefined},{url:'https://new.example/v1/models',key:'Bearer test-draft-key'}]);assert.deepEqual(result.models,['model-a','model-z']);assert.equal(fs.readFileSync(file,'utf8'),before);
+});

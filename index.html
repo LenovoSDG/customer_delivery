@@ -107,40 +107,24 @@
       <div class="dialog-head"><h2 id="modelSettingsTitle">模型设置</h2><button class="close" id="closeModelSettings" type="button" aria-label="关闭模型设置">×</button></div>
       <p class="dialog-copy">选择交付质检与汇报演练使用的模型。截图识别仍使用本机视觉模型。</p>
       <label for="modelProvider">模型来源</label>
-      <select id="modelProvider"><option value="ollama">本地模型 · Ollama</option><option value="bohrium">API 模型 · 玻尔 Bohrium</option><option value="deepseek">API 模型 · DeepSeek</option><option value="custom">自定义 API</option></select>
+      <select id="modelProvider"><option value="ollama">本地模型 · Ollama</option><option value="custom">自定义 API</option></select>
       <section id="localModelPanel">
         <label for="modelName">本地模型名称</label><input id="modelName" placeholder="例如 qwen3-local:4b">
         <p class="model-help">质检与汇报演练内容在本机 Ollama 中处理。</p>
         <div class="settings-actions"><button class="secondary" id="checkConnection" type="button">检测本地模型</button><span class="connection" id="connectionStatus" role="status">等待检测</span></div>
-      </section>
-      <section id="apiModelPanel" hidden>
-        <label for="apiBaseUrl">API 地址</label><input id="apiBaseUrl" readonly value="https://open.bohrium.com/openapi/model-gateway/v1">
-        <label for="apiKey">API 密钥</label><input id="apiKey" type="password" autocomplete="new-password" placeholder="填写玻尔网关密钥" spellcheck="false">
-        <p class="model-help" id="apiKeyStatus">尚未配置密钥。</p>
-        <div class="settings-actions"><button class="secondary" id="refreshApiModels" type="button">读取模型列表</button></div>
-        <label for="apiModelName">API 模型</label><input id="apiModelName" list="apiModelOptions" placeholder="输入名称搜索，或填写完整模型 ID" autocomplete="off"><datalist id="apiModelOptions"></datalist>
-        <p class="model-help" id="apiModelsStatus" role="status">配置密钥后读取可见模型，也可直接填写模型 ID。请选择支持文本聊天的模型。</p>
-        <p class="model-disclosure">质检时，需求、检查规范和材料文本将发送至玻尔网关。汇报演练会发送项目摘要、材料摘录和近期问答。密钥保存在本机后端。</p>
-      </section>
-      <section id="deepseekModelPanel" hidden>
-        <label for="deepseekModelName">DeepSeek 模型 ID</label>
-        <input id="deepseekModelName" list="deepseekModelOptions" placeholder="deepseek-flash" autocomplete="off" spellcheck="false">
-        <datalist id="deepseekModelOptions"><option value="deepseek-flash"></option><option value="deepseek-v4-pro"></option></datalist>
-        <label for="deepseekKey">DeepSeek API 密钥</label>
-        <input id="deepseekKey" type="password" autocomplete="new-password" spellcheck="false">
-        <p class="model-help" id="deepseekKeyStatus"></p>
-        <p class="model-disclosure">质检和汇报演练会将相应的项目文本和问答发送给 DeepSeek。密钥由本机后端保存。</p>
       </section>
       <section id="customModelPanel" hidden>
         <label for="customBaseUrl">API 基础地址</label>
         <input id="customBaseUrl" type="url" placeholder="https://your-api.example/v1" autocomplete="off" spellcheck="false">
         <p class="model-help">填写兼容 OpenAI Chat Completions 的服务地址。地址可以包含 /v1 等路径。</p>
         <label for="customModelName">模型 ID</label>
-        <input id="customModelName" placeholder="填写服务商提供的模型 ID" autocomplete="off" spellcheck="false">
+        <input id="customModelName" list="apiModelOptions" placeholder="填写或选择模型 ID" autocomplete="off" spellcheck="false"><datalist id="apiModelOptions"></datalist>
+        <div class="settings-actions"><button class="secondary" id="refreshApiModels" type="button">读取模型列表</button></div>
+        <p class="model-help" id="apiModelsStatus" role="status">填写服务地址后可读取模型列表；服务不支持时，直接填写模型 ID。</p>
         <label for="customKey">API 密钥（可选）</label>
         <input id="customKey" type="password" autocomplete="new-password" spellcheck="false">
         <p class="model-help" id="customKeyStatus"></p>
-        <p class="model-disclosure">质检和汇报演练会把相应的项目文本发送至你填写的地址。</p>
+        <p class="model-disclosure">质检和演练文字发送至填写的 API 地址。密钥仅保存在本机后端，音频仅在本机识别。</p>
       </section>
       <div id="modelSettingsStatus" class="settings-status" role="status" aria-live="polite"></div>
       <div class="dialog-actions"><button class="secondary" id="cancelModelSettings" type="button">取消</button><button class="primary" value="save" id="saveSettings">保存设置</button></div>

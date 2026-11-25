@@ -224,7 +224,7 @@ const server = http.createServer(async (req, res) => {
     catch (error) { return json(res, 400, { error: error.message }); }
   }
   if (url.pathname === '/api/api-models' && req.method === 'POST') {
-    try { const { apiKey } = await readBody(req); return json(res, 200, await gateway.listModels(apiKey)); }
+    try { const input = await readBody(req); return json(res, 200, await gateway.listModels(input.customBaseUrl !== undefined ? input : input.apiKey || {})); }
     catch (error) { return json(res, 400, { error: error.message }); }
   }
   if (url.pathname === '/api/health') {
