@@ -33,7 +33,7 @@ async function coachTurn(input, ask) {
     focus: String(input.focus || ''), requirements, rules: String(input.rules || ''),
     documents: documents.filter(d => d.text.trim()).map(d => ({ documentId: d.id, name: d.name, text: d.text })),
     unreadableFiles: documents.filter(d => !d.text.trim()).map(d => d.name), history, answer };
-  const limit = input.provider === 'bohrium' ? 48000 : 7500;
+  const limit = input.provider === 'ollama' || !input.provider ? 7500 : 48000;
   if (Buffer.byteLength(COACH_SYSTEM + JSON.stringify(data) + JSON.stringify(COACH_SCHEMA)) + 1200 > limit) throw new Error('演练上下文超出当前模型范围，请减少材料、缩短回答或切换 API 模型');
   const raw = await ask(COACH_SYSTEM, JSON.stringify(data), COACH_SCHEMA);
   const result = typeof raw === 'string' ? JSON.parse(raw) : raw;

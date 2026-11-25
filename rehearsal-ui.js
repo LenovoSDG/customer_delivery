@@ -1,6 +1,9 @@
 (() => {
   const el = id => document.getElementById(id);
   const page = el('page-rehearsal'), input = el('answerInput');
+  const projectSessions = new Map();
+  let projectId = typeof activeProject === 'undefined' ? 'default' : activeProject.id;
+  const initialConversation = el('conversation').innerHTML, initialFeedback = el('feedback').innerHTML;
   let active = false, paused = false, phase = 'idle', remaining = 300, lastTick = Date.now(), history = [], turns = 0, session = 0, request, question = '', context;
   let voiceTurn = null, voiceText = '', partialText = '', lastSpeechAt = 0;
   let micOn = false, captureToken = 0, closingUtterance = false, voiceQueue = [], ttsActive = false, timeNotified = false, inFlightTurn = null, resumeMic = false;
@@ -23,7 +26,8 @@
   function begin() {
     if (active) { paused = false; lastTick = Date.now(); controls(); return; }
     session++; active = true; paused = false; remaining = Number(el('duration').value) * 60; lastTick = Date.now(); turns = 0; history = []; timeNotified = false; voiceTurn = null; voiceText = partialText = '';
-    context = { project: { ...state.project }, requirements: structuredClone(state.requirements), documents: structuredClone(state.docs), rules: el('rules').value, audience: el('audience').value, durationMinutes: Number(el('duration').value), focus: el('rehearsalFocus').value };
+    const project = typeof activeProject === 'undefined' ? { ...state.project, requirements: state.requirements, docs: state.docs } : activeProject;
+    context = { project: { name: project.name, customer: project.customer }, requirements: structuredClone(project.requirements), documents: structuredClone(project.docs), rules: el('rules').value, audience: el('audience').value, durationMinutes: Number(el('duration').value), focus: el('rehearsalFocus').value };
     question = `请面向${context.audience}，介绍“${context.project.name}”的进展、交付依据和下一步计划。${context.focus ? '本次重点：' + context.focus : ''}`;
     el('conversation').replaceChildren(); message('assistant', question);
     el('feedback').textContent = '发送回答后，教练会结合已确认需求与可读材料给出本轮反馈。'; controls();
@@ -116,7 +120,7 @@
     const id = session; phase = 'sending'; request = new AbortController(); controls(); stopSpeech(); status(micOn ? '麦克风持续开启 · 教练正在回复，你可以继续补充。' : '教练正在回复…');
     try {
       const selected = await ModelSettings.selection(); if (id !== session) return;
-      el('coachModel').textContent = `${selected.provider === 'bohrium' ? 'API' : '本地'} · ${selected.model}`;
+      el('coachModel').textContent = `${ModelSettings.providerLabel?.(selected.provider) || (selected.provider === 'ollama' ? '本地' : 'API')} · ${selected.model}`;
       const response = await fetch('/api/rehearsal', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ ...context, ...selected, history, answer }), signal: request.signal });
       const result = await response.json(); if (id !== session) return; if (!response.ok) throw new Error(result.error || '教练请求失败');
       if (!result || typeof result.question !== 'string' || !result.question.trim() || typeof result.summary !== 'string' || !['strengths','improvements','evidence','warnings'].every(key => Array.isArray(result[key]))) throw new Error(result?.error || '教练反馈不完整，请重试');
@@ -150,5 +154,21 @@
   el('readQuestion').onclick = read; if (synth) synth.addEventListener('voiceschanged', voices); voices();
   setInterval(() => { if (active && !paused) { const elapsed = Math.floor((Date.now() - lastTick)/1000); remaining = Math.max(0,remaining-elapsed); lastTick += elapsed*1000; if (!remaining && !timeNotified) { timeNotified = true; status(micOn ? '练习时间已到，麦克风仍开启。可继续演练或主动停止录音。' : '练习时间已到，可继续回答或结束演练。'); } controls(); voices(); } },1000);
   new MutationObserver(() => { if (!page.classList.contains('active') && active && !paused) interrupt('已离开演练页，练习自动暂停；返回后可继续。'); }).observe(page, {attributes:true,attributeFilter:['class']});
+  window.addEventListener('project-changed', () => {
+    const nextId = typeof activeProject === 'undefined' ? 'default' : activeProject.id;
+    if (nextId === projectId) return;
+    interrupt('已切换项目，当前演练已暂停。');
+    projectSessions.set(projectId, { nodes: [...el('conversation').childNodes], feedback: el('feedback').innerHTML,
+      answer: input.value, audience: el('audience').value, duration: el('duration').value, focus: el('rehearsalFocus').value,
+      active, remaining, history, turns, question, context, model: el('coachModel').textContent });
+    projectId = nextId; const saved = projectSessions.get(projectId);
+    active = saved?.active || false; paused = active; remaining = saved?.remaining ?? 300;
+    history = saved?.history || []; turns = saved?.turns || 0; question = saved?.question || ''; context = saved?.context;
+    voiceTurn = null; voiceText = partialText = ''; resumeMic = false; timeNotified = false;
+    input.value = saved?.answer || ''; el('audience').value = saved?.audience || '客户项目负责人'; el('duration').value = saved?.duration || '5'; el('rehearsalFocus').value = saved?.focus || '';
+    if (saved) el('conversation').replaceChildren(...saved.nodes); else el('conversation').innerHTML = initialConversation;
+    el('feedback').innerHTML = saved?.feedback || initialFeedback; el('coachModel').textContent = saved?.model || '使用模型设置中的语言模型';
+    status(active ? '已恢复此项目的演练。点击继续演练后再回答。' : '选择演练方式开始当前项目的练习。'); controls();
+  });
   window.addEventListener('pagehide', () => interrupt('演练已停止。',true)); controls();
 })();

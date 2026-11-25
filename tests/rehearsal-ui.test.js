@@ -1,5 +1,5 @@
 const test=require('node:test'); const assert=require('node:assert/strict'); const fs=require('node:fs'); const {JSDOM}=require('jsdom');
-function harness({autoRead=false} = {}) {
+function harness({autoRead=false,selection={provider:'bohrium',model:'test-model'}} = {}) {
  const dom=new JSDOM(fs.readFileSync(require.resolve('../index.html'),'utf8'),{runScripts:'outside-only',url:'http://127.0.0.1:4174/'}), w=dom.window;
  w.document.getElementById('page-rehearsal').classList.add('active');
  w.document.getElementById('autoRead').checked=autoRead;
@@ -8,7 +8,7 @@ function harness({autoRead=false} = {}) {
  w.Date.now=()=>now; w.setInterval=fn=>{timers.push(fn);return timers.length;};
  w.structuredClone=structuredClone; w.SpeechEngine=class{constructor(cb){callbacks=cb;} setMuted(value){muted=value;} async start(){starts++;return true;} async finishUtterance(){finishes++;callbacks.text('我们需要补充管理员操作手册');callbacks.partial('');callbacks.boundary();} async stop(){callbacks.text('我们需要补充管理员操作手册');callbacks.partial('');} cancel(){cancelCount++;}};
  w.speechSynthesis={getVoices:()=>[{lang:'zh-CN',localService:true}],addEventListener(){},cancel(){},speak(utterance){spoken=utterance;}};w.SpeechSynthesisUtterance=class{constructor(text){this.text=text;}};
- w.ModelSettings={selection:async()=>({provider:'bohrium',model:'test-model'})};
+ w.ModelSettings={selection:async()=>selection};
  w.fetch=async(url,options)=>{if(url==='/api/voice/status')return {json:async()=>({refiner:{available:true}})};calls++;bodies.push(JSON.parse(options.body)); return new Promise(resolve=>{resolveFetch=resolve;});};
  w.state={project:{name:'演示'},requirements:[],docs:[]}; w.escapeHtml=s=>String(s).replaceAll('<','&lt;');
  w.eval(fs.readFileSync(require.resolve('../rehearsal-ui'),'utf8'));
@@ -73,4 +73,10 @@ test('default voice conversation reads the opening and every complete reply acro
 });
 test('failed high-quality recognition keeps its preview visibly unverified and cannot retry it as a final answer',async()=>{
  const h=harness();try{h.el('micButton').click();await flush();h.speech.partial('错误的预览');h.speech.refining();h.speech.error(new Error('核准失败'));const bubble=h.el('conversation').querySelector('.voice-message');assert.match(bubble.textContent,/语音核准未完成/);assert.equal(bubble.querySelector('button').hidden,true);assert.equal(h.calls,0);}finally{h.close();}
+});
+
+test('voice coach preserves custom and DeepSeek selections instead of falling back to Ollama',async()=>{
+ for(const selection of [{provider:'custom',model:'custom-text',customBaseUrl:'https://service.example/v1'},{provider:'deepseek',model:'deepseek-flash'}]) {
+  const h=harness({selection});try{h.el('startRehearsal').click();h.type('当前项目已完成试点');h.el('sendAnswer').click();await flush();assert.equal(h.bodies[0].provider,selection.provider);assert.equal(h.bodies[0].model,selection.model);assert.equal(h.bodies[0].customBaseUrl,selection.customBaseUrl);assert.equal(h.bodies[0].project.name,'演示');}finally{h.close();}
+ }
 });

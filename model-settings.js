@@ -6,17 +6,31 @@
   state.provider = 'ollama';
   state.apiModel = '';
 
+  function providerLabel(provider) {
+    if (provider === 'custom') return '自定义 API';
+    return provider === 'deepseek' ? 'DeepSeek API' : provider === 'bohrium' ? '玻尔 API' : '本机 Ollama';
+  }
+
+  function destinationLabel(provider) {
+    if (provider === 'custom') return saved?.customBaseUrl || '自定义 API';
+    return provider === 'bohrium' ? '玻尔网关' : providerLabel(provider);
+  }
+
   function applyConfig(config) {
     saved = config;
     configError = '';
     state.provider = config.provider;
-    state.apiModel = config.apiModel || '';
+    const models = { bohrium: config.apiModel, deepseek: config.deepseekModel, custom: config.customModel };
+    state.apiModel = models[config.provider] || '';
+    state.customBaseUrl = config.customBaseUrl || '';
     if (config.localModel) state.model = config.localModel;
-    const remote = config.provider === 'bohrium';
-    el('privacyNotice').textContent = remote ? 'API 模型 · 文字内容发送至玻尔网关' : '本地模型 · 使用本机 Ollama';
-    el('processingNotice').textContent = remote ? 'API 质检与教练会发送需求、材料和发言文字至玻尔网关 · 音频仅本机处理' : '质检、转写与教练在本机处理 · 外部聊天平台连接为演示';
-    el('reviewProviderBadge').textContent = remote ? '调用玻尔 API' : '调用本机 Ollama';
-    if (!document.querySelector('#report .report-meta') && el('qualityModel').textContent !== '检查中') el('qualityModel').textContent = remote ? '玻尔 API' : '本地模型';
+    const remote = config.provider !== 'ollama';
+    const source = providerLabel(config.provider);
+    el('privacyNotice').textContent = remote ? `质检与演练 · ${source}` : '本地质检与演练 · 使用本机 Ollama';
+    el('processingNotice').textContent = remote ? `质检和演练文字发送至 ${destinationLabel(config.provider)} · 音频仅本机处理` : '质检与演练在本机处理 · 外部聊天平台连接当前为演示状态';
+    el('reviewProviderBadge').textContent = `调用${source}`;
+    if (!document.querySelector('#report .report-meta') && el('qualityModel').textContent !== '检查中') el('qualityModel').textContent = remote ? source : '本地模型';
+    window.dispatchEvent(new Event('model-settings-changed'));
   }
 
   async function readConfig() {
@@ -31,9 +45,12 @@
   const ready = readConfig();
 
   function toggleProvider() {
-    const remote = el('modelProvider').value === 'bohrium';
-    el('localModelPanel').hidden = remote;
-    el('apiModelPanel').hidden = !remote;
+    const provider = el('modelProvider').value;
+    el('localModelPanel').hidden = provider !== 'ollama';
+    el('apiModelPanel').hidden = provider !== 'bohrium';
+    el('deepseekModelPanel').hidden = provider !== 'deepseek';
+    el('customModelPanel').hidden = provider !== 'custom';
+    el('customBaseUrl').disabled = provider !== 'custom';
     el('modelSettingsStatus').textContent = '';
   }
 
@@ -42,8 +59,19 @@
     if (configError) await readConfig();
     el('modelProvider').value = state.provider;
     el('modelName').value = state.model;
-    el('apiModelName').value = state.apiModel;
+    el('apiModelName').value = saved?.apiModel || '';
     el('apiKey').value = '';
+    el('deepseekModelName').value = saved?.deepseekModel || 'deepseek-flash';
+    el('deepseekKey').value = '';
+    el('deepseekKeyStatus').textContent = saved?.deepseekKeyConfigured
+      ? '已配置密钥，留空继续使用。'
+      : '请填写 DeepSeek API 密钥。';
+    el('customBaseUrl').value = saved?.customBaseUrl || '';
+    el('customModelName').value = saved?.customModel || '';
+    el('customKey').value = '';
+    el('customKeyStatus').textContent = saved?.customKeyConfigured
+      ? '当前地址的密钥已保存。更换地址时，按新服务的要求填写密钥。'
+      : '服务要求 Bearer 密钥时填写。';
     el('apiKeyStatus').textContent = saved?.keyConfigured ? '已保存密钥；留空则继续使用，仅更换时填写。' : '尚未配置密钥。输入后可读取模型列表，再保存。';
     toggleProvider();
     if (configError) el('modelSettingsStatus').textContent = configError;
@@ -84,11 +112,19 @@
       const payload = { provider, localModel: el('modelName').value.trim() || state.model,
         apiModel: el('apiModelName').value.trim() };
       if (provider === 'bohrium' && el('apiKey').value.trim()) payload.apiKey = el('apiKey').value.trim();
+      if (provider === 'deepseek') {
+        payload.deepseekModel = el('deepseekModelName').value.trim();
+        if (el('deepseekKey').value.trim()) payload.deepseekKey = el('deepseekKey').value.trim();
+      }
+      if (provider === 'custom') {
+        payload.customBaseUrl = el('customBaseUrl').value.trim();
+        payload.customModel = el('customModelName').value.trim();
+        if (el('customKey').value.trim()) payload.customKey = el('customKey').value.trim();
+      }
       const response = await fetch('/api/model-config', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
       const config = await response.json();
       if (!response.ok) throw new Error(config.error || '保存失败');
       applyConfig(config);
-      el('apiKey').value = '';
       el('settingsDialog').close();
     } catch (error) { el('modelSettingsStatus').textContent = error.message; }
     finally { button.disabled = false; }
@@ -99,7 +135,11 @@
   el('modelProvider').onchange = toggleProvider;
   el('refreshApiModels').onclick = refreshModels;
   el('modelSettingsForm').addEventListener('submit', saveSettings);
-  el('settingsDialog').addEventListener('close', () => { el('apiKey').value = ''; });
+  el('settingsDialog').addEventListener('close', () => {
+    el('apiKey').value = '';
+    el('deepseekKey').value = '';
+    el('customKey').value = '';
+  });
   el('checkConnection').onclick = async () => {
     el('connectionStatus').textContent = '检测中…';
     try {
@@ -110,10 +150,11 @@
     } catch { el('connectionStatus').textContent = '无法检测本地服务'; }
   };
 
-  window.ModelSettings = { ready, async selection() {
+  window.ModelSettings = { ready, providerLabel, destinationLabel, async selection() {
     await ready;
     if (configError) throw new Error('无法读取模型配置，请打开模型设置后重试');
     const provider = state.provider || 'ollama';
-    return { provider, model: provider === 'bohrium' ? state.apiModel : state.model };
+    const model = provider === 'ollama' ? state.model : state.apiModel;
+    return provider === 'custom' ? { provider, model, customBaseUrl: state.customBaseUrl } : { provider, model };
   } };
 })();

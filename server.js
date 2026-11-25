@@ -1,6 +1,7 @@
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
+const { randomUUID } = require('node:crypto');
 const { spawn } = require('node:child_process');
 const mammoth = require('mammoth');
 const ExcelJS = require('exceljs');
@@ -18,7 +19,9 @@ if (asr.status().available) asr.start().catch(() => {});
 process.once('exit', () => asr.close());
 const MAX_BODY = 12 * 1024 * 1024;
 const CAPTURE_DIR = path.join(ROOT, 'captures');
-const capture = { active: false, timer: null, busy: false, hwnd: '', title: '', group: '', model: '', intervalSec: 15, startedAt: '', lastCheck: '', lastError: '', saved: 0, events: [], nextEventId: 1, lastSignature: '' };
+let capture = { active: false, projectId: 'demo' };
+const captureEvents = [];
+let nextCaptureEventId = Date.now();
 fs.mkdirSync(CAPTURE_DIR, { recursive: true });
 
 function json(res, status, value) {
@@ -93,17 +96,20 @@ async function recognizeGroupScreenshot(filePath, model, group) {
   return JSON.parse(jsonText);
 }
 
-async function captureTick() {
+async function captureTick(capture) {
   if (!capture.active || capture.busy) return;
   capture.busy = true;
   capture.lastCheck = new Date().toISOString();
-  const tempFile = path.join(CAPTURE_DIR, `.pending-${Date.now()}.png`);
+  const tempFile = path.join(CAPTURE_DIR, `.pending-${randomUUID()}.png`);
   try {
     const windows = await listWechatWindows();
+    if (!capture.active) return;
     const target = windows.find(w => w.hwnd === capture.hwnd);
     if (!target) throw new Error('所选微信窗口已关闭；监测已暂停，请重新选择窗口');
     await captureWindow(capture.hwnd, tempFile);
+    if (!capture.active) return;
     const recognized = await recognizeGroupScreenshot(tempFile, capture.model, capture.group);
+    if (!capture.active) return;
     if (!recognized.group_match) {
       capture.lastError = `未确认目标群“${capture.group}”，本次截图未保存`;
       return;
@@ -115,16 +121,17 @@ async function captureTick() {
       return;
     }
     capture.lastSignature = signature;
-    const file = `wechat-${Date.now()}.png`;
+    nextCaptureEventId = Math.max(nextCaptureEventId + 1, Date.now());
+    const file = `wechat-${nextCaptureEventId}.png`;
     const dest = path.join(CAPTURE_DIR, file);
     fs.renameSync(tempFile, dest);
     capture.saved += 1;
     capture.lastError = '';
-    capture.events.push({ id: capture.nextEventId++, at: new Date().toISOString(), file, url: `/captures/${file}`, group: String(recognized.group_name || capture.group), messages });
-    if (capture.events.length > 100) capture.events.shift();
+    captureEvents.push({ id: nextCaptureEventId, projectId: capture.projectId, at: new Date().toISOString(), file, url: `/captures/${file}`, group: String(recognized.group_name || capture.group), messages });
+    if (captureEvents.length > 100) captureEvents.shift();
   } catch (error) {
     capture.lastError = error.message;
-    if (/所选微信窗口已关闭/.test(error.message)) stopCapture();
+    if (capture.active && /所选微信窗口已关闭/.test(error.message)) stopCapture();
   } finally {
     if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile);
     capture.busy = false;
@@ -133,21 +140,15 @@ async function captureTick() {
 
 function startCapture(config) {
   stopCapture();
-  capture.active = true;
-  capture.hwnd = String(config.hwnd);
-  capture.title = String(config.title || '微信窗口');
-  capture.group = String(config.group).trim();
-  capture.model = String(config.model);
-  capture.intervalSec = Math.max(10, Math.min(120, Number(config.intervalSec) || 15));
-  capture.startedAt = new Date().toISOString();
-  capture.lastCheck = '';
-  capture.lastError = '';
-  capture.saved = 0;
-  capture.events = [];
-  capture.nextEventId = 1;
-  capture.lastSignature = '';
-  capture.timer = setInterval(captureTick, capture.intervalSec * 1000);
-  captureTick();
+  const session = {
+    active: true, busy: false, projectId: config.projectId, hwnd: String(config.hwnd),
+    title: config.title, group: config.group, model: config.model,
+    intervalSec: Math.max(10, Math.min(120, Number(config.intervalSec) || 15)),
+    startedAt: new Date().toISOString(), lastCheck: '', lastError: '', saved: 0, lastSignature: ''
+  };
+  capture = session;
+  session.timer = setInterval(() => captureTick(session), session.intervalSec * 1000);
+  captureTick(session);
 }
 
 function stopCapture() {
@@ -174,12 +175,13 @@ function extractRequirements(messages) {
 }
 
 async function askOllama(model, system, content, schema, signal) {
+  const timeout = AbortSignal.timeout(90000);
   const response = await fetch('http://127.0.0.1:11434/api/chat', {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ model, stream: false, think: false, format: schema,
       options: { temperature: 0, seed: 42, num_ctx: 8192, num_predict: 1200 },
       messages: [{ role: 'system', content: system }, { role: 'user', content: content + '\n输出JSON schema：' + JSON.stringify(schema) }] }),
-    signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(90000)]) : AbortSignal.timeout(90000)
+    signal: signal ? AbortSignal.any([signal, timeout]) : timeout
   });
   if (!response.ok) throw new Error(`Ollama 返回 HTTP ${response.status}`);
   const result = await response.json();
@@ -216,25 +218,6 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(200, { 'content-type': 'application/gzip', 'content-length': fs.statSync(archive).size, 'cache-control': 'no-cache' });
     const stream = fs.createReadStream(archive); stream.on('error', () => res.destroy()); res.on('close', () => stream.destroy()); return stream.pipe(res);
   }
-  if (url.pathname === '/api/rehearsal' && req.method === 'POST') {
-    const controller = new AbortController();
-    const cancel = () => { if (!res.writableEnded) controller.abort(); }; res.once('close', cancel);
-    try {
-      const input = await readBody(req);
-      if (!['ollama', 'bohrium'].includes(input.provider)) throw new Error('请选择本地模型或 API 模型');
-      const model = String(input.model || '').trim();
-      if (!model || model === 'rules') throw new Error('汇报教练需要语言模型，请在模型设置中选择本地或 API 模型');
-      if (input.provider === 'bohrium' && !gateway.publicConfig().keyConfigured) throw new Error('请先配置 API 密钥');
-      if (res.destroyed) controller.abort();
-      const started = performance.now();
-      const result = await coachTurn(input, (system, content, schema) => input.provider === 'bohrium'
-        ? gateway.ask(model, system, content, schema, { signal: controller.signal, interactive: true })
-        : askOllama(model, system, content, schema, controller.signal));
-      if (!res.destroyed) json(res, 200, { ...result, provider: input.provider, model, elapsedMs: Math.round(performance.now() - started) });
-    } catch (error) { if (!res.destroyed) json(res, 400, { error: error.message }); }
-    finally { res.off('close', cancel); }
-    return;
-  }
   if (url.pathname === '/api/model-config' && req.method === 'GET') return json(res, 200, gateway.publicConfig());
   if (url.pathname === '/api/model-config' && req.method === 'POST') {
     try { return json(res, 200, gateway.saveConfig(await readBody(req))); }
@@ -257,11 +240,13 @@ const server = http.createServer(async (req, res) => {
   }
   if (url.pathname === '/api/wechat/capture/status' && req.method === 'GET') {
     const after = Number(url.searchParams.get('after') || 0);
-    return json(res, 200, { active: capture.active, title: capture.title, group: capture.group, intervalSec: capture.intervalSec, startedAt: capture.startedAt, lastCheck: capture.lastCheck, lastError: capture.lastError, saved: capture.saved, events: capture.events.filter(event => event.id > after) });
+    return json(res, 200, { active: capture.active, projectId: capture.projectId, title: capture.title, group: capture.group, intervalSec: capture.intervalSec, startedAt: capture.startedAt, lastCheck: capture.lastCheck, lastError: capture.lastError, saved: capture.saved, events: captureEvents.filter(event => event.id > after) });
   }
   if (url.pathname === '/api/wechat/capture/start' && req.method === 'POST') {
     try {
       const config = await readBody(req);
+      const projectId = config.projectId || 'demo';
+      if (typeof projectId !== 'string' || !/^(?:demo|[0-9a-f-]{36})$/.test(projectId)) return json(res, 400, { error: '项目编号无效' });
       if (!/^\d+$/.test(String(config.hwnd || ''))) return json(res, 400, { error: '请先选择微信窗口' });
       const group = String(config.group || '').trim();
       if (group.length < 2 || group.length > 120) return json(res, 400, { error: '请填写准确的微信群聊名称' });
@@ -274,11 +259,14 @@ const server = http.createServer(async (req, res) => {
       const models = (data.models || []).map(item => item.name);
       const visionModels = models.filter(name => /vl|vision|llava|minicpm-v|moondream/i.test(name));
       if (!visionModels.includes(config.model)) return json(res, 400, { error: '请选择已安装的本地视觉模型，例如 qwen3-vl；普通文本模型不能识别截图' });
-      startCapture({ ...config, title: target.title || '微信窗口', group });
-      return json(res, 200, { active: true, title: capture.title, group: capture.group, intervalSec: capture.intervalSec });
+      if (capture.active && capture.projectId !== projectId) return json(res, 409, { error: '另一项目正在监测微信，请先在该项目中停止监测。' });
+      startCapture({ ...config, projectId, title: target.title || '微信窗口', group });
+      return json(res, 200, { active: true, projectId, title: capture.title, group: capture.group, intervalSec: capture.intervalSec });
     } catch (error) { return json(res, 400, { error: `启动微信监测失败：${error.message}` }); }
   }
   if (url.pathname === '/api/wechat/capture/stop' && req.method === 'POST') {
+    const projectId = url.searchParams.get('projectId') || 'demo';
+    if (capture.active && capture.projectId !== projectId) return json(res, 409, { error: '请在启动监测的项目中停止监测。' });
     stopCapture();
     return json(res, 200, { active: false });
   }
@@ -343,23 +331,53 @@ const server = http.createServer(async (req, res) => {
       return json(res, 422, { error: `截图识别失败：${error.message}。请确认已安装支持图片的视觉模型（如 qwen3-vl），并在页面选择该模型。` });
     }
   }
+  if (url.pathname === '/api/rehearsal' && req.method === 'POST') {
+    let input;
+    try { input = await readBody(req); }
+    catch (error) { return json(res, 400, { error: error.message }); }
+    const provider = input?.provider;
+    const api = gateway.apiConfig(provider);
+    if (provider !== 'ollama' && !api) return json(res, 400, { error: '请选择演练使用的模型来源' });
+    if (api?.error) return json(res, 400, { error: api.error });
+    const model = String(input?.model || api?.model || '').trim().slice(0,200);
+    if (!model || (provider === 'ollama' && model === 'rules')) return json(res, 400, { error: '请在模型设置中选择支持文本对话的模型' });
+    const controller = new AbortController();
+    const cancelOnDisconnect = () => { if (!res.writableEnded) controller.abort(); };
+    res.once('close', cancelOnDisconnect);
+    if (res.destroyed) controller.abort();
+    try {
+      const ask = api
+        ? gateway.createChat(provider, model, { signal: controller.signal, expectedBaseUrl: input.customBaseUrl, interactive: true })
+        : (system, content, schema) => askOllama(model, system, content, schema, controller.signal);
+      const started = performance.now();
+      const turn = await coachTurn(input, ask);
+      if (!res.destroyed) return json(res, 200, { ...turn, provider, model, elapsedMs: Math.round(performance.now() - started) });
+    } catch (error) {
+      const message = !api && error.message === 'fetch failed' ? '无法连接本机 Ollama，请启动服务后重试'
+        : !api && error.message === 'Ollama 返回 HTTP 404' ? `Ollama 未找到模型 ${model}，请在模型设置中选用已安装的模型`
+        : error.message;
+      if (!res.destroyed) return json(res, 502, { error: message });
+    } finally { res.off('close', cancelOnDisconnect); }
+    return;
+  }
   if (url.pathname === '/api/review' && req.method === 'POST') {
     try {
       const input = await readBody(req);
       const { model, requirements, documents, rules } = input;
       const provider = input.provider || 'ollama';
-      if (!['ollama', 'bohrium'].includes(provider)) return json(res, 400, { error: '未知的模型来源' });
-      if (provider === 'bohrium') {
-        const config = gateway.publicConfig();
-        if (!config.keyConfigured) return json(res, 400, { error: '请先在模型设置中配置玻尔 API 密钥' });
-        const selected = String(model || config.apiModel).trim();
+      const api = gateway.apiConfig(provider);
+      if (provider !== 'ollama' && !api) return json(res, 400, { error: '未知的模型来源' });
+      if (api) {
+        if (api.error) return json(res, 400, { error: api.error });
+        const selected = String(model || api.model).trim();
         if (!selected) return json(res, 400, { error: '请先选择 API 模型' });
         const controller = new AbortController();
         const cancelOnDisconnect = () => { if (!res.writableEnded) controller.abort(); };
         res.once('close', cancelOnDisconnect);
         if (res.destroyed) controller.abort();
         try {
-          const result = await reviewProject(input, (system, content, schema) => gateway.ask(selected, system, content, schema, { signal: controller.signal }));
+          const ask = gateway.createChat(provider, selected, { signal: controller.signal, expectedBaseUrl: input.customBaseUrl });
+          const result = await reviewProject(input, ask);
           if (!res.destroyed) return json(res, 200, { ...result, mode: result.report.summary.reviewed ? 'api' : 'unavailable', provider, model: selected });
           return;
         } finally { res.off('close', cancelOnDisconnect); }
@@ -372,7 +390,7 @@ const server = http.createServer(async (req, res) => {
     } catch (error) { return json(res, 400, { error: error.message }); }
   }
   const vendors = { '/vendor/vosk.js': 'node_modules/vosk-browser/dist/vosk.js', '/vendor/marked.js': 'node_modules/marked/lib/marked.umd.js', '/vendor/purify.js': 'node_modules/dompurify/dist/purify.min.js' };
-  const assets = new Set(['/', '/index.html', '/app.js', '/style.css', '/report.css', '/report-ui.js', '/model-settings.js', '/model-settings.css', '/speech-engine.js', '/rehearsal-ui.js', '/rehearsal.css', '/audio-capture-worklet.js', ...Object.keys(vendors)]);
+  const assets = new Set(['/', '/index.html', '/app.js', '/style.css', '/report.css', '/report-ui.js', '/rehearsal-ui.js', '/model-settings.js', '/model-settings.css', '/speech-engine.js', '/rehearsal.css', '/audio-capture-worklet.js', ...Object.keys(vendors)]);
   if (!assets.has(url.pathname)) return json(res, 404, { error: '未找到页面' });
   const file = url.pathname === '/' ? 'index.html' : path.basename(url.pathname);
   const filePath = path.join(ROOT, vendors[url.pathname] || file);

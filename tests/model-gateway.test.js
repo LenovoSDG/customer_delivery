@@ -91,6 +91,41 @@ test('cancellation stops in-flight work and prevents subsequent API requests', a
   assert.equal(calls, 1);
 });
 
+test('custom API uses the saved address, keeps its key scoped to that address, and leaves DeepSeek separate', async t => {
+  const requests = [];
+  const fakeFetch = async (url, options) => {
+    requests.push({ url, authorization: options.headers.authorization, model: JSON.parse(options.body).model });
+    assert.equal(options.redirect, 'error');
+    return Response.json({ choices: [{ message: { content: '{"question":"试点何时启动？","feedback":""}' } }] });
+  };
+  const { gateway, file } = setup(t, fakeFetch);
+  gateway.saveConfig({ provider: 'deepseek', deepseekKey: 'test-deepseek-key' });
+  const first = gateway.saveConfig({
+    provider: 'custom', customBaseUrl: 'https://first.example/v1/chat/completions/',
+    customModel: 'first-model', customKey: 'test-custom-key'
+  });
+  assert.equal(first.customBaseUrl, 'https://first.example/v1');
+  assert.equal(first.customKeyConfigured, true);
+  assert.doesNotMatch(JSON.stringify(first), /test-.*-key/);
+  assert.throws(() => gateway.saveConfig({ provider: 'custom', customBaseUrl: 'https://user:secret@example/v1' }), /API 地址/);
+
+  const runningReview = gateway.createChat('custom', first.customModel, { expectedBaseUrl: first.customBaseUrl });
+  const second = gateway.saveConfig({ provider: 'custom', customBaseUrl: 'http://127.0.0.1:8000/v1', customModel: 'second-model' });
+  assert.equal(second.customKeyConfigured, false);
+  assert.equal(second.deepseekKeyConfigured, true);
+  assert.throws(() => gateway.createChat('custom', first.customModel, { expectedBaseUrl: first.customBaseUrl }), /地址已更新/);
+  assert.equal((await runningReview('system', 'content', {})).question, '试点何时启动？');
+
+  const reloaded = createModelGateway({ configFile: file, env: {}, fetchImpl: fakeFetch });
+  await reloaded.createChat('custom')('system', 'content', {});
+  await reloaded.createChat('deepseek')('system', 'content', {});
+  assert.deepEqual(requests, [
+    { url: 'https://first.example/v1/chat/completions', authorization: 'Bearer test-custom-key', model: 'first-model' },
+    { url: 'http://127.0.0.1:8000/v1/chat/completions', authorization: undefined, model: 'second-model' },
+    { url: 'https://api.deepseek.com/chat/completions', authorization: 'Bearer test-deepseek-key', model: 'deepseek-flash' }
+  ]);
+});
+
 test('interactive GLM coaching disables reasoning and bounds output without changing quality review requests', async t => {
   const bodies=[];const {gateway}=setup(t,async(url,options)=>{bodies.push(JSON.parse(options.body));return Response.json({choices:[{finish_reason:'stop',message:{content:'{"question":"何时交付？"}'}}]});});
   gateway.saveConfig({provider:'bohrium',apiKey:'test-only-key',apiModel:'glm-5.2'});
