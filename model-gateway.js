@@ -39,6 +39,17 @@ function createModelGateway({ configFile, env = process.env, fetchImpl = global.
     customBaseUrl, customModel: value('CUSTOM_API_MODEL'), customKey
   };
 
+  // Legacy provider names are read only as compatibility aliases. The active API slot is generic.
+  function migrateActiveAPI(config) {
+    if (!['bohrium', 'deepseek'].includes(config.provider)) return;
+    const legacy = API_PROVIDERS[config.provider];
+    config.customBaseUrl = legacy.baseUrl;
+    config.customModel = config[legacy.modelField];
+    config.customKey = config[legacy.keyField];
+    config.provider = 'custom';
+  }
+  migrateActiveAPI(settings);
+
   const publicConfig = () => ({ provider: settings.provider, localModel: settings.localModel,
     apiModel: settings.apiModel, apiBaseUrl: BASE_URL, keyConfigured: Boolean(settings.apiKey),
     deepseekModel: settings.deepseekModel, deepseekKeyConfigured: Boolean(settings.deepseekKey),
@@ -79,18 +90,15 @@ function createModelGateway({ configFile, env = process.env, fetchImpl = global.
       next.customKey = input.customKey ? validateKey(input.customKey, '自定义') : sameAddress ? settings.customKey : '';
     }
     if (next.provider === 'ollama') next.localModel = validateModel(next.localModel);
+    migrateActiveAPI(next);
     if (fs.existsSync(configFile) && fs.lstatSync(configFile).isSymbolicLink()) throw new Error('模型配置不能使用符号链接');
     const existing = fs.existsSync(configFile) ? dotenv.parse(fs.readFileSync(configFile)) : {};
     const values = { ...existing, MODEL_PROVIDER: next.provider, LOCAL_MODEL: next.localModel,
       BOHRIUM_MODEL: next.apiModel, BOHRIUM_API_KEY: next.apiKey, DEEPSEEK_MODEL: next.deepseekModel };
     if (input.deepseekKey) values.DEEPSEEK_API_KEY = next.deepseekKey;
-    if (next.provider === 'custom') {
-      values.CUSTOM_API_BASE_URL = next.customBaseUrl;
-      values.CUSTOM_API_MODEL = next.customModel;
-      if (input.customKey || next.customBaseUrl !== settings.customBaseUrl) {
-        values.CUSTOM_API_KEY = next.customKey;
-      }
-    }
+    values.CUSTOM_API_BASE_URL = next.customBaseUrl;
+    values.CUSTOM_API_MODEL = next.customModel;
+    values.CUSTOM_API_KEY = next.customKey;
     // Do not put secret values into errors, responses, stdout or browser storage.
     const text = Object.entries(values).map(([key, val]) => `${key}=${JSON.stringify(val)}`).join('\n') + '\n';
     const temporary = path.join(path.dirname(configFile), `.model-config-${process.pid}-${Date.now()}.tmp`);
@@ -110,7 +118,7 @@ function createModelGateway({ configFile, env = process.env, fetchImpl = global.
     if (status === 401) return new Error(`${name} API 密钥无效或已失效，请更新密钥`);
     if (status === 402) return new Error(`${name} API 账户余额不足`);
     if (status === 403) return new Error('当前密钥没有所选模型的访问权限');
-    if (status === 429) return new Error('玻尔网关限流或额度不足，请稍后重试并检查账户额度');
+    if (status === 429) return new Error('API 服务限流或额度不足，请稍后重试并检查账户额度');
     if (status === 404) return new Error('网关未找到接口或模型，请刷新列表或核对模型 ID');
     return new Error(`${name} API 请求失败（HTTP ${status}），请检查所选模型是否支持文本聊天`);
   }
@@ -134,16 +142,21 @@ function createModelGateway({ configFile, env = process.env, fetchImpl = global.
     return response;
   }
 
-  async function listModels(temporaryKey) {
-    const key = validateKey(temporaryKey || settings.apiKey, '玻尔');
-    const response = await request(API_PROVIDERS.bohrium, '/models', key);
-    if (!response.ok) throw httpError(response.status, '玻尔');
+  async function listModels(input = {}) {
+    // Accept the old string argument for existing callers; new clients always specify the draft address.
+    const legacy = typeof input === 'string';
+    const baseUrl = legacy ? BASE_URL : normalizeBaseUrl(input.customBaseUrl ?? settings.customBaseUrl);
+    const rawKey = legacy ? input : input.customKey || (baseUrl === settings.customBaseUrl ? settings.customKey : '');
+    const key = rawKey ? validateKey(rawKey, '自定义') : '';
+    const api = { name: '自定义', baseUrl };
+    const response = await request(api, '/models', key);
+    if (!response.ok) throw httpError(response.status, '自定义');
     let data;
-    try { data = await response.json(); } catch { throw new Error('网关模型列表不是有效 JSON'); }
+    try { data = await response.json(); } catch { throw new Error('API 模型列表不是有效 JSON'); }
     const rows = Array.isArray(data.data) ? data.data : Array.isArray(data.models) ? data.models : null;
-    if (!rows) throw new Error('网关没有返回可识别的模型列表，可手动填写模型 ID');
+    if (!rows) throw new Error('服务没有返回可识别的模型列表，可手动填写模型 ID');
     const models = [...new Set(rows.map(row => typeof row === 'string' ? row : row?.id).filter(id => typeof id === 'string' && id.trim()))].sort();
-    return { models, apiBaseUrl: BASE_URL };
+    return { models, apiBaseUrl: baseUrl };
   }
 
   async function chatCompletion(api, key, model, system, content, schema, signal, interactive = false) {
@@ -203,7 +216,7 @@ function createModelGateway({ configFile, env = process.env, fetchImpl = global.
     return (system, content, schema) => chatCompletion(api, key, selected, system, content, schema, signal, interactive);
   }
 
-  async function ask(model, system, content, schema, { provider = 'bohrium', signal, interactive = false } = {}) {
+  async function ask(model, system, content, schema, { provider = 'custom', signal, interactive = false } = {}) {
     return createChat(provider, model, { signal, interactive })(system, content, schema);
   }
 
