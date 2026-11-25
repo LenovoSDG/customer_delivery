@@ -1,33 +1,31 @@
 {
   "name": "local-delivery-demo",
-  "version": "1.0.0",
-  "description": "一个本地运行的项目交付与汇报助手原型。核心流程：打开项目 → 导入历史聊天或模拟机器人接入 → 确认需求并整理交付清单 → 上传交付材料 → 本地模型质检 → 模拟汇报问答。",
-  "main": "app.js",
+  "version": "1.14.0",
+  "description": "一个本地运行的项目交付与汇报助手原型。核心流程：创建项目 → 导入历史聊天或模拟机器人接入 → 确认需求并整理交付清单 → 上传交付材料 → 本地模型质检 → 模拟汇报问答。",
+  "main": "server.js",
   "scripts": {
-    "test": "node --test tests/*.test.js",
     "start": "node server.js",
-    "setup:voice": "node scripts/setup-voice.js",
-    "setup:voice-hq": "node scripts/setup-voice-hq.js"
+    "test": "node --test tests/experience.test.js tests/model-provider.test.js tests/rehearsal.test.js tests/asr-service.test.js",
+    "test:core-legacy": "node --test tests/model-gateway.test.js tests/review.test.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "dompurify": "^3.5.0",
-    "dotenv": "^18.0.10",
     "exceljs": "^4.4.0",
-    "fflate": "^0.8.3",
     "mammoth": "^1.13.0",
-    "marked": "^18.3.0",
     "pdf-parse": "^2.4.5",
-    "tar": "^7.5.23",
-    "vosk-browser": "^0.0.8"
+    "pg": "^8.23.1",
+    "@fugood/whisper.node": "1.2.0-rc.2"
   },
   "overrides": {
     "uuid": "11.1.1"
   },
+  "optionalDependencies": {
+    "@fugood/node-whisper-win32-x64": "1.2.0-rc.2"
+  },
   "devDependencies": {
-    "jsdom": "^29.1.1"
+    "jsdom": "^29.0.0"
   }
 }

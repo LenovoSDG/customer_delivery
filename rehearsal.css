@@ -4,22 +4,22 @@
 #page-rehearsal h2 { font-size:19px; }
 #page-rehearsal label { font-size:14px; color:#37485b; }
 #page-rehearsal button,#page-rehearsal select,#page-rehearsal textarea { font-size:14px; }
-#page-rehearsal textarea { font-size:16px; caret-color:#087f91; }
+#page-rehearsal textarea { font-size:16px; caret-color:#6250cb; }
 #page-rehearsal textarea::placeholder { color:#657181; }
 #page-rehearsal .rehearsal-grid { grid-template-columns:minmax(260px, .8fr) minmax(0,1.6fr); align-items:start; gap:24px; }
 #page-rehearsal .rehearsal-setup { min-width:0; }
 #page-rehearsal .rehearsal-actions { flex-wrap:wrap; gap:10px; }
-#page-rehearsal .primary { background:#087f91; border-color:#087f91; color:white; }
-#page-rehearsal .primary:hover { background:#066b7b; }
+#page-rehearsal .primary { background:#6250cb; border-color:#6250cb; color:white; }
+#page-rehearsal .primary:hover { background:#5141b0; }
 #page-rehearsal button:disabled { opacity:.55; cursor:not-allowed; }
-#page-rehearsal :focus-visible { outline:3px solid #087f91; outline-offset:3px; }
-#page-rehearsal ::selection { background:#c9edf0; color:#143345; }
+#page-rehearsal :focus-visible { outline:3px solid #6250cb; outline-offset:3px; }
+#page-rehearsal ::selection { background:#e3dcff; color:#143345; }
 #page-rehearsal .privacy-note,#page-rehearsal .audio-hint,#page-rehearsal .tts-note,#page-rehearsal .answer-help { font-size:12px; color:#526173; line-height:1.7; }
 #page-rehearsal .privacy-note { display:block; margin:16px 0 0; }
 .voice-panel { margin-top:20px; padding-top:16px; border-top:1px solid #d9e1e7; }
 #voiceStatus { margin:0 0 8px; font-size:14px; overflow-wrap:anywhere; }
-#voiceLevel { width:100%; height:12px; accent-color:#087f91; }
-#page-rehearsal .text-button { border:0; background:transparent; padding:8px 4px; color:#076e7e; text-decoration:underline; text-underline-offset:4px; min-height:40px; }
+#voiceLevel { width:100%; height:12px; accent-color:#6250cb; }
+#page-rehearsal .text-button { border:0; background:transparent; padding:8px 4px; color:#5845ad; text-decoration:underline; text-underline-offset:4px; min-height:40px; }
 #page-rehearsal .coach-head { padding:20px; gap:12px; }
 #page-rehearsal .coach-head b { font-size:16px; }
 #page-rehearsal .coach-head small { font-size:12px; color:#526173; }
