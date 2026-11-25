@@ -19,7 +19,6 @@
 .voice-panel { margin-top:20px; padding-top:16px; border-top:1px solid #d9e1e7; }
 #voiceStatus { margin:0 0 8px; font-size:14px; overflow-wrap:anywhere; }
 #voiceLevel { width:100%; height:12px; accent-color:#087f91; }
-#voicePartial { min-height:24px; margin:4px 0; font-size:14px; color:#526173; }
 #page-rehearsal .text-button { border:0; background:transparent; padding:8px 4px; color:#076e7e; text-decoration:underline; text-underline-offset:4px; min-height:40px; }
 #page-rehearsal .coach-head { padding:20px; gap:12px; }
 #page-rehearsal .coach-head b { font-size:16px; }

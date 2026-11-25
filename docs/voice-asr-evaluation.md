@@ -46,5 +46,5 @@
 
 - [Whisper large-v3-turbo 原模型](https://huggingface.co/openai/whisper-large-v3-turbo)
 - [本项目使用的MLX Q4权重](https://huggingface.co/mlx-community/whisper-large-v3-turbo-q4)，固定revision `660c343bbf4e52ac257f0b7d952e5388e6f93bef`，下载时检查SHA-256。
-- `npm run setup:voice-hq` 安装识别引擎与权重，`npm start` 运行。使用相同语音通过浏览器的导入功能观察核准前后文字；开发对比数据存于未提交的 `outputs/asr-comparison/`。
+- `npm run setup:voice-hq` 安装识别引擎与权重，`npm start` 运行。对比数据由开发测试页面读取相同语音并观察核准前后文字得到；产品中的音频导入入口已移除。开发对比数据存于未提交的 `outputs/asr-comparison/`。
 - 自动化测试覆盖默认自动朗读、完整反馈朗读、连续两轮不重新申请麦克风、朗读回声隔离、取消后过期识别结果忽略，以及PCM输入校验。

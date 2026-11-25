@@ -58,8 +58,7 @@
             <label>练习时长<select id="duration"><option value="5">5 分钟</option><option value="10">10 分钟</option><option value="15">15 分钟</option></select></label>
             <label>本次重点<textarea id="rehearsalFocus" maxlength="1000" placeholder="例如：数据口径、上线安排与安全保障。"></textarea></label>
             <div class="rehearsal-actions"><button class="primary" id="micButton">开始语音演练</button><button class="secondary" id="finishVoiceTurn" disabled>说完了，立即回复</button><button class="secondary" id="startRehearsal">开始文字演练</button></div>
-            <div class="voice-panel"><p id="voiceStatus" role="status" aria-live="polite">点击开始后请求麦克风权限，首次加载中文模型约42 MB。</p><meter id="voiceLevel" min="0" max="1" value="0" aria-label="音频输入音量"></meter><p id="voicePartial" aria-live="off"></p><button class="text-button" id="importAudio">导入语音演练</button><input type="file" id="audioFile" accept="audio/*,.wav,.mp3,.m4a,.ogg,.webm" hidden><span class="audio-hint">高精度音频2分钟以内 · 最大20 MB</span></div>
-            <p id="speechEngineStatus" class="privacy-note">正在检测本机语音识别服务…</p><p class="privacy-note">音频在本机浏览器与本机识别服务中处理，不发送到外部网关、不保存。发言实时进入对话；麦克风持续开启，停顿约1秒或点击“说完了”后自动回复；随后直接接着说。点击“停止录音”才关闭麦克风。</p>
+            <div class="voice-panel"><p id="voiceStatus" role="status" aria-live="polite">点击开始后请求麦克风权限，首次加载中文模型约42 MB。</p><meter id="voiceLevel" min="0" max="1" value="0" aria-label="音频输入音量"></meter></div>
           </section>
           <section class="surface coach-surface">
             <div class="coach-head"><div class="coach-avatar">AI</div><div><b>汇报教练</b><small id="coachModel">使用模型设置中的语言模型</small></div><span class="coach-live" role="status">待开始</span></div>

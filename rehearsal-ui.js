@@ -10,7 +10,7 @@
     el('micButton').textContent = micOn ? '停止录音' : phase === 'preparing' ? '取消语音准备' : active ? '开启连续录音' : '开始语音演练';
     el('micButton').dataset.recording = micOn; el('micButton').disabled = false;
     el('finishVoiceTurn').disabled = !micOn || closingUtterance || !voiceAnswer();
-    el('startRehearsal').disabled = busy() || active; el('importAudio').disabled = busy() || micOn;
+    el('startRehearsal').disabled = busy() || active;
     el('sendAnswer').disabled = !active || paused || busy() || !input.value.trim(); input.readOnly = ['preparing','listening','transcribing','sending'].includes(phase);
     for (const id of ['audience','duration','rehearsalFocus']) el(id).disabled = active;
     el('pauseRehearsal').disabled = !active; el('endRehearsal').disabled = !active;
@@ -71,13 +71,13 @@
   }, 250);
   function stopSpeech() { ttsActive = false; speech.setMuted(false); window.speechSynthesis?.cancel(); el('readQuestion').textContent = '朗读问题'; }
   function interrupt(reason, end = false) {
-    resumeMic = !end && micOn; session++; if (inFlightTurn) markVoice(inFlightTurn, '回复已停止 · 发言已保留，可重试', true); inFlightTurn = null; micOn = false; captureToken++; closingUtterance = false; for (const queued of voiceQueue) markVoice(queued, '已暂停 · 发言已保留，尚未回复', true); voiceQueue = []; if (voiceTurn && voiceTurn.state !== 'sent') markVoice(voiceTurn, '已暂停 · 发言已保留，尚未完成回复', true); speech.cancel(); request?.abort(); request = null; stopSpeech(); phase = 'idle'; el('voicePartial').textContent = '';
+    resumeMic = !end && micOn; session++; if (inFlightTurn) markVoice(inFlightTurn, '回复已停止 · 发言已保留，可重试', true); inFlightTurn = null; micOn = false; captureToken++; closingUtterance = false; for (const queued of voiceQueue) markVoice(queued, '已暂停 · 发言已保留，尚未回复', true); voiceQueue = []; if (voiceTurn && voiceTurn.state !== 'sent') markVoice(voiceTurn, '已暂停 · 发言已保留，尚未完成回复', true); speech.cancel(); request?.abort(); request = null; stopSpeech(); phase = 'idle';
     if (active) paused = true; if (end) { active = false; paused = false; }
     status(reason); controls();
   }
   function audioError(error) {
-    micOn = false; captureToken++; closingUtterance = false; speech.cancel(); if (phase !== 'sending') phase = 'idle'; el('voicePartial').textContent = ''; markVoice(voiceTurn, '未完成回复 · 发言已保留', true);
-    const messages = { NotAllowedError: '麦克风权限被拒绝。请在浏览器站点设置中允许麦克风，再重试；也可以导入音频或输入文字。', NotFoundError: '未找到麦克风，请连接设备或导入音频。', NotReadableError: '麦克风被占用或不可用，请关闭其他录音程序后重试。' };
+    micOn = false; captureToken++; closingUtterance = false; speech.cancel(); if (phase !== 'sending') phase = 'idle'; markVoice(voiceTurn, '未完成回复 · 发言已保留', true);
+    const messages = { NotAllowedError: '麦克风权限被拒绝。请在浏览器站点设置中允许麦克风，再重试；也可以输入文字。', NotFoundError: '未找到麦克风，请连接设备或输入文字。', NotReadableError: '麦克风被占用或不可用，请关闭其他录音程序后重试。' };
     status(messages[error.name] || (error.name === 'EncodingError' ? '无法解码此音频，请改用 WAV 文件或输入文字' : error.message) || '无法识别此音频，请改用 WAV 文件或输入文字', true); controls();
   }
   function stopMicrophone() {
@@ -146,17 +146,7 @@
   el('endRehearsal').onclick = () => interrupt(`演练结束，共完成${turns}轮。已保留对话、反馈与未发送文字。`, true);
   el('sendAnswer').onclick = () => send(); input.oninput = controls;
   input.addEventListener('keydown', event => { if (!event.isComposing && event.key === 'Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); send(); } });
-  el('importAudio').onclick = () => el('audioFile').click();
-  el('audioFile').onchange = async () => {
-    const file = el('audioFile').files[0]; el('audioFile').value = ''; if (!file || busy()) return;
-    begin(); stopSpeech(); voiceTurn = null; voiceText = partialText = ''; phase = 'transcribing'; const id = session; controls(); status('正在本地处理音频，发言将直接显示在对话中…');
-    try { await speech.importFile(file); if (id !== session) return; phase = 'idle'; controls(); if (voiceTurn?.answer) await send(voiceTurn); else status('没有识别到讲话，请换一段音频重试。'); }
-    catch (error) { if (id === session) audioError(error); }
-  };
   el('autoRead').onchange = () => { if (!el('autoRead').checked) stopSpeech(); };
-  fetch('/api/voice/status').then(response => response.json()).then(value => {
-    el('speechEngineStatus').textContent = value.refiner?.available ? '本机 Whisper 高精度识别 · 实时预览在停顿后自动核准，核准后才交给教练。' : '当前使用浏览器快速识别；高精度本机识别尚未安装。';
-  }).catch(() => { el('speechEngineStatus').textContent = '无法检测语音识别服务，请重试。'; });
   el('readQuestion').onclick = read; if (synth) synth.addEventListener('voiceschanged', voices); voices();
   setInterval(() => { if (active && !paused) { const elapsed = Math.floor((Date.now() - lastTick)/1000); remaining = Math.max(0,remaining-elapsed); lastTick += elapsed*1000; if (!remaining && !timeNotified) { timeNotified = true; status(micOn ? '练习时间已到，麦克风仍开启。可继续演练或主动停止录音。' : '练习时间已到，可继续回答或结束演练。'); } controls(); voices(); } },1000);
   new MutationObserver(() => { if (!page.classList.contains('active') && active && !paused) interrupt('已离开演练页，练习自动暂停；返回后可继续。'); }).observe(page, {attributes:true,attributeFilter:['class']});
